@@ -35,6 +35,14 @@ export interface TenantConfig {
   createdAt: string;
 }
 
+export type FuelType = 'ELECTRIC' | 'GASOLINE' | 'DIESEL';
+
+export const FUEL_TYPE_LABELS: Record<FuelType, string> = {
+  ELECTRIC: '⚡ Xe điện',
+  GASOLINE: '⛽ Xăng',
+  DIESEL: '🛢️ Dầu',
+};
+
 export interface Vehicle {
   id: string;
   tenantId: string;
@@ -47,6 +55,7 @@ export interface Vehicle {
   color: string;
   serviceMode: ServiceMode;
   dailyRateSelfDrive: number; // Giá thuê tự lái / ngày
+  fuelType?: FuelType;        // Loại nhiên liệu: Xe điện / Xăng / Dầu
   fuelCostPerKm: number;      // Định mức nhiên liệu tự cấn trừ (VNĐ/km)
   highwayTollMultiplier: number; // Hệ số phí trạm cao tốc (1.0 cho 4-7 chỗ, 1.5 cho 16 chỗ...)
   status: 'AVAILABLE' | 'ON_TRIP' | 'BOOKED' | 'MAINTENANCE';

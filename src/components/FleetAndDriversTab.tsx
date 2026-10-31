@@ -10,6 +10,8 @@ import {
 } from 'lucide-react';
 import {
   Driver,
+  FUEL_TYPE_LABELS,
+  FuelType,
   SeatCategory,
   ServiceMode,
   Trip,
@@ -17,6 +19,12 @@ import {
   VehicleType,
 } from '../types/fleet';
 import { calculateTripFinancials, formatVND } from '../utils/calculations';
+
+const FUEL_BADGE_CLASS: Record<FuelType, string> = {
+  ELECTRIC: 'bg-teal-100 text-teal-800 border border-teal-300',
+  GASOLINE: 'bg-orange-100 text-orange-800 border border-orange-300',
+  DIESEL: 'bg-slate-200 text-slate-800 border border-slate-400',
+};
 
 interface FleetAndDriversTabProps {
   vehicles: Vehicle[];
@@ -71,6 +79,7 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
   const [vMode, setVMode] = useState<ServiceMode>('BOTH');
   const [vDailyRate, setVDailyRate] = useState(950000);
   const [vFuelCostPerKm, setVFuelCostPerKm] = useState(2100);
+  const [vFuelType, setVFuelType] = useState<FuelType>('GASOLINE');
   const [vTollMult, setVTollMult] = useState(1.0);
   const [vStatus, setVStatus] = useState<Vehicle['status']>('AVAILABLE');
 
@@ -110,6 +119,7 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
     setVMode(veh.serviceMode);
     setVDailyRate(veh.dailyRateSelfDrive);
     setVFuelCostPerKm(veh.fuelCostPerKm);
+    setVFuelType(veh.fuelType || 'GASOLINE');
     setVTollMult(veh.highwayTollMultiplier);
     setVStatus(veh.status);
     setShowAddVehicle(true);
@@ -147,6 +157,7 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
         serviceMode: vMode,
         dailyRateSelfDrive: Number(vDailyRate) || 900000,
         fuelCostPerKm: Number(vFuelCostPerKm) || 2000,
+        fuelType: vFuelType,
         highwayTollMultiplier: Number(vTollMult) || 1.0,
         status: vStatus,
       });
@@ -163,6 +174,7 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
         serviceMode: vMode,
         dailyRateSelfDrive: Number(vDailyRate) || 900000,
         fuelCostPerKm: Number(vFuelCostPerKm) || 2000,
+        fuelType: vFuelType,
         highwayTollMultiplier: Number(vTollMult) || 1.0,
         status: vStatus,
         currentOdoKm: 10000,
@@ -369,9 +381,18 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
                 >
                   <div>
                     <div className="flex items-center justify-between gap-2 mb-2.5">
-                      <span className="px-2.5 py-1 rounded-lg bg-blue-600 text-white text-xs font-extrabold">
-                        {veh.seatCategory}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="px-2.5 py-1 rounded-lg bg-blue-600 text-white text-xs font-extrabold">
+                          {veh.seatCategory}
+                        </span>
+                        <span
+                          className={`px-2 py-0.5 rounded-lg text-[11px] font-bold ${
+                            FUEL_BADGE_CLASS[veh.fuelType || 'GASOLINE']
+                          }`}
+                        >
+                          {FUEL_TYPE_LABELS[veh.fuelType || 'GASOLINE']}
+                        </span>
+                      </div>
                       <div className="flex items-center gap-1.5">
                         <span
                           className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
@@ -445,7 +466,9 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
                         </strong>
                       </div>
                       <div className="flex justify-between">
-                        <span>Định mức xăng tự trừ:</span>
+                        <span>
+                          {veh.fuelType === 'ELECTRIC' ? 'Định mức sạc điện tự trừ:' : veh.fuelType === 'DIESEL' ? 'Định mức dầu tự trừ:' : 'Định mức xăng tự trừ:'}
+                        </span>
                         <strong className="text-amber-700">{formatVND(veh.fuelCostPerKm)}/km</strong>
                       </div>
                     </div>
@@ -694,6 +717,30 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
                 </div>
               </div>
 
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Loại nhiên liệu *</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(['ELECTRIC', 'GASOLINE', 'DIESEL'] as FuelType[]).map((ft) => (
+                    <button
+                      key={ft}
+                      type="button"
+                      onClick={() => setVFuelType(ft)}
+                      className={`py-2 rounded-lg text-xs font-bold transition ${
+                        vFuelType === ft
+                          ? ft === 'ELECTRIC'
+                            ? 'bg-teal-600 text-white'
+                            : ft === 'GASOLINE'
+                            ? 'bg-orange-500 text-white'
+                            : 'bg-slate-700 text-white'
+                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      {FUEL_TYPE_LABELS[ft]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">Giá tự lái/ngày</label>
@@ -706,7 +753,13 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Định mức xăng/km</label>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    {vFuelType === 'ELECTRIC'
+                      ? 'Định mức sạc điện/km'
+                      : vFuelType === 'DIESEL'
+                      ? 'Định mức dầu/km'
+                      : 'Định mức xăng/km'}
+                  </label>
                   <input
                     type="number"
                     step="100"

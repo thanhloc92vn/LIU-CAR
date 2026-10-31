@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import {
   Driver,
+  FUEL_TYPE_LABELS,
   HighwayPreset,
   RouteType,
   SeatCategory,
@@ -321,9 +322,22 @@ export const PublicCustomerBookingPortal: React.FC<PublicCustomerBookingPortalPr
             >
               <div className="p-5 space-y-3">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="px-3 py-1 rounded-lg bg-blue-600 text-white text-xs font-extrabold">
-                    {veh.seatCategory}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="px-3 py-1 rounded-lg bg-blue-600 text-white text-xs font-extrabold">
+                      {veh.seatCategory}
+                    </span>
+                    <span
+                      className={`px-2 py-0.5 rounded-lg text-[11px] font-bold ${
+                        veh.fuelType === 'ELECTRIC'
+                          ? 'bg-teal-100 text-teal-800 border border-teal-300'
+                          : veh.fuelType === 'DIESEL'
+                          ? 'bg-slate-200 text-slate-800 border border-slate-400'
+                          : 'bg-orange-100 text-orange-800 border border-orange-300'
+                      }`}
+                    >
+                      {FUEL_TYPE_LABELS[veh.fuelType || 'GASOLINE']}
+                    </span>
+                  </div>
                   <span
                     className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
                       veh.status === 'AVAILABLE'
