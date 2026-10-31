@@ -275,7 +275,7 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
             className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-sm transition"
           >
             <Plus className="w-4 h-4" />
-            <span>Thêm Xe Mới (4 chỗ, 7 chỗ...)</span>
+            <span>Thêm xe mới</span>
           </button>
         ) : (
           <button
