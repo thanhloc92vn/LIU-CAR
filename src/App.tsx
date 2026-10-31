@@ -370,6 +370,36 @@ export function App() {
   };
 
   // Handlers
+  // Báo chuyến vào nhóm Telegram qua máy chủ (token không nằm ở trình duyệt).
+  // Đợi vài giây để chuyến kịp lưu lên Supabase, thử lại một lần nếu máy chủ chưa thấy chuyến.
+  const sendTripToTelegram = (tripId: string, tripCode: string, manual = false) => {
+    const attempt = async (retry: boolean) => {
+      try {
+        const res = await fetch('/api/telegram-notify-trip', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tripId }),
+        });
+        // Bản chạy trên máy trả trang HTML cho đường dẫn lạ nên phải đọc JSON để biết gửi thật hay không
+        const data = await res.json().catch(() => null);
+        if (res.ok && data?.ok) {
+          showToast(`Đã báo chuyến #${tripCode} vào nhóm Telegram`);
+        } else if (res.status === 404 && retry) {
+          setTimeout(() => attempt(false), 4000);
+        } else if (manual) {
+          showToast(
+            res.status === 503
+              ? 'Bot Telegram chưa được cấu hình trên máy chủ'
+              : 'Chưa gửi được vào Telegram, thử lại sau ít phút'
+          );
+        }
+      } catch {
+        if (manual) showToast('Không kết nối được máy chủ bot (bản chạy trên máy chưa có chức năng này)');
+      }
+    };
+    setTimeout(() => attempt(true), manual ? 0 : 3500);
+  };
+
   const handleSaveTrip = (tripData: Omit<Trip, 'id' | 'createdAt'>, existingId?: string) => {
     if (existingId) {
       setDb((prev) => ({
@@ -415,9 +445,8 @@ export function App() {
         trips: [newTrip, ...prev.trips],
         botLogs: [newLog, ...prev.botLogs],
       }));
-      showToast(
-        `Đã tạo lịch #${newTrip.tripCode} & bắn thông báo @Tag tài xế qua Zalo/Telegram!`
-      );
+      showToast(`Đã tạo lịch #${newTrip.tripCode}`);
+      sendTripToTelegram(newId, newTrip.tripCode);
     }
     setEditingTrip(null);
   };
@@ -646,6 +675,7 @@ export function App() {
       trips: [newTrip, ...prev.trips],
       botLogs: [newLog, ...prev.botLogs],
     }));
+    sendTripToTelegram(newTripId, newTrip.tripCode);
   };
 
   const handleAddVehicle = (vehData: Omit<Vehicle, 'id'>) => {
@@ -742,6 +772,8 @@ export function App() {
       botLogs: [newLog, ...prev.botLogs],
     }));
 
+    sendTripToTelegram(newId, newTrip.tripCode);
+
     return newTrip;
   };
 
@@ -784,9 +816,9 @@ export function App() {
                 <Car className="w-4 h-4 text-white" />
               </div>
               <div className="min-w-0">
-                <h1 className="text-sm font-semibold leading-tight truncate">{activeTenant.shortName}</h1>
+                <h1 className="text-sm font-semibold leading-tight truncate">Haydixe</h1>
                 <p className="text-xs text-slate-500 leading-tight truncate">
-                  {authSession.role === 'ADMIN' ? 'Quản trị' : 'Tài xế'} · {authSession.fullName}
+                  {activeTenant.shortName} · {authSession.role === 'ADMIN' ? 'Quản trị' : 'Tài xế'} · {authSession.fullName}
                 </p>
               </div>
             </div>
@@ -852,18 +884,18 @@ export function App() {
             </div>
           </div>
 
-          {/* Điều hướng trên máy tính */}
-          <div className="hidden md:block">
-            <div className="max-w-7xl mx-auto px-6 flex items-center gap-1 pb-2">
+          {/* Điều hướng trên máy tính: dải nền xanh nhạt, mỗi mục là một ô riêng */}
+          <div className="hidden md:block bg-blue-50 border-t border-blue-100">
+            <div className="max-w-7xl mx-auto px-6 flex items-center gap-2 py-2">
               {visibleTabs.map((tab) => (
                 <button
                   key={tab.id}
                   type="button"
                   onClick={() => setActiveTab(tab.id)}
-                  className={`inline-flex items-center gap-2 h-8 px-3.5 rounded-full text-sm font-medium transition ${
+                  className={`inline-flex items-center gap-2 h-9 px-4 rounded-xl text-sm font-medium transition ${
                     activeTab === tab.id
-                      ? 'bg-slate-900 text-white'
-                      : 'text-slate-600 hover:bg-slate-200/70'
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'bg-white text-slate-700 shadow-sm hover:bg-blue-100/70 hover:text-blue-700'
                   }`}
                 >
                   <tab.icon className="w-4 h-4" />
@@ -1082,6 +1114,17 @@ export function App() {
                             <Printer className="w-3.5 h-3.5" />
                             <span>Phiếu / Zalo</span>
                           </button>
+                          {isAdmin && trip.status !== 'CANCELLED' && (
+                            <button
+                              type="button"
+                              onClick={() => sendTripToTelegram(trip.id, trip.tripCode, true)}
+                              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium transition"
+                              title="Gửi (lại) chuyến này vào nhóm Telegram"
+                            >
+                              <Bot className="w-3.5 h-3.5" />
+                              <span>Gửi Telegram</span>
+                            </button>
+                          )}
                           {isAdmin ? (
                             <button
                               type="button"
