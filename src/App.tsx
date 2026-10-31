@@ -29,6 +29,11 @@ import {
   Vehicle,
 } from './types/fleet';
 import { initialFleetDatabase } from './services/seedData';
+import {
+  isSupabaseConfigured,
+  loadFromSupabase,
+  saveToSupabase,
+} from './services/supabaseClient';
 import { calculateTripFinancials, formatVND } from './utils/calculations';
 import { buildBotDispatchMessage } from './utils/aiBotEngine';
 import { BookingModal } from './components/BookingModal';
@@ -76,10 +81,19 @@ export function App() {
     }, 4500);
   };
 
-  // Load persistent DB from backend `/api/db` or localStorage
+  // Load persistent DB from Supabase -> backend `/api/db` -> localStorage
   useEffect(() => {
     let mounted = true;
     async function loadData() {
+      if (isSupabaseConfigured()) {
+        const cloudData = await loadFromSupabase();
+        if (cloudData && cloudData.vehicles && mounted) {
+          setDb(cloudData);
+          setIsLoaded(true);
+          return;
+        }
+      }
+
       try {
         const res = await fetch('/api/db');
         if (res.ok) {
@@ -130,6 +144,9 @@ export function App() {
   useEffect(() => {
     if (!isLoaded) return;
     localStorage.setItem('SMARTFLEET_DB_V1', JSON.stringify(db));
+    if (isSupabaseConfigured()) {
+      saveToSupabase(db).catch(() => {});
+    }
     fetch('/api/db', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
