@@ -212,6 +212,8 @@ export interface Trip {
   botChannel: 'BOTH' | 'TELEGRAM' | 'ZALO';
   botConfirmedAt?: string;
   botConfirmedByDriverName?: string;
+  dispatchedAt?: string;     // Thời điểm điều hành điều phối (chọn) tài xế; chỉ khi đó tài xế mới được báo riêng
+  dispatchedByName?: string;
   completedAt?: string;      // Thời điểm xác nhận hoàn thành chuyến
   completedByName?: string;  // Người xác nhận hoàn thành (tài xế hoặc điều hành)
   notes?: string;

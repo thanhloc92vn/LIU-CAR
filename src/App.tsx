@@ -41,6 +41,7 @@ import { calculateTripFinancials, formatVND } from './utils/calculations';
 import { getSupabaseCredentials } from './services/supabaseClient';
 import { buildBotDispatchMessage } from './utils/aiBotEngine';
 import { ownsVehicle } from './utils/party';
+import { busyDriverIds, driverUnavailableReason, isDispatched, vehicleFitsTrip } from './utils/dispatch';
 import { BookingModal } from './components/BookingModal';
 import { FinanceSettlementTab } from './components/FinanceSettlementTab';
 import { FleetAndDriversTab } from './components/FleetAndDriversTab';
@@ -345,7 +346,7 @@ export function App() {
       const drvId = authSession.driverId;
       const me = db.drivers.find((d) => d.id === drvId);
       return all.filter((t) => {
-        if (t.driverId === drvId || t.taggedDriverIds?.includes(drvId)) return true;
+        if (t.driverId === drvId || t.taggedDriverIds?.includes(drvId)) return isDispatched(t);
         // Chủ xe thấy mọi chuyến dùng xe của mình (kể cả chuyến tự lái)
         const veh = db.vehicles.find((v) => v.id === t.vehicleId);
         return ownsVehicle(me, veh);
@@ -467,6 +468,83 @@ export function App() {
       }
     };
     setTimeout(() => attempt(true), manual ? 0 : 3500);
+  };
+
+  // Nhắn riêng tài xế + báo nhóm khi điều hành điều phối. Đợi chuyến kịp lưu lên Supabase, thử lại một lần.
+  const sendDispatchToTelegram = (tripId: string, tripCode: string, driverName: string) => {
+    const isLocal = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+    const attempt = async (retry: boolean) => {
+      try {
+        const res = await fetch('/api/telegram-dispatch-driver', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tripId }),
+        });
+        const data = await res.json().catch(() => null);
+        if (res.ok && data?.ok) {
+          showToast(
+            data.dm === 'sent'
+              ? `Đã nhắn riêng cho ${driverName} qua Telegram`
+              : `${driverName} chưa liên kết Telegram nên chưa nhắn riêng được`
+          );
+        } else if (res.status === 404 && retry) {
+          setTimeout(() => attempt(false), 4000);
+        } else if (!isLocal) {
+          showToast(`Chưa báo được tài xế chuyến #${tripCode} qua Telegram`);
+        }
+      } catch {
+        if (!isLocal) showToast(`Không kết nối được máy chủ bot cho chuyến #${tripCode}`);
+      }
+    };
+    setTimeout(() => attempt(true), 3500);
+  };
+
+  // Điều hành chọn xe cho chuyến từ thẻ chuyến; tính lại phần cấn trừ nhiên liệu theo xe mới
+  const handleChangeTripVehicle = (tripId: string, vehicleId: string) => {
+    const veh = db.vehicles.find((v) => v.id === vehicleId);
+    if (!veh) return;
+    setDb((prev) => ({
+      ...prev,
+      trips: prev.trips.map((t) => {
+        if (t.id !== tripId) return t;
+        const fuel =
+          t.bookingType === 'SELF_DRIVE'
+            ? 0
+            : activeTenant.autoFuelDeductionEnabled
+            ? Math.round((Number(t.distanceKm) || 0) * (veh.fuelCostPerKm || 2000))
+            : 0;
+        return { ...t, vehicleId, autoFuelQuota: fuel };
+      }),
+    }));
+    showToast(`Đã đổi xe sang ${veh.brand} ${veh.model} (${veh.plateNumber})`);
+  };
+
+  // Điều phối: điều hành chọn tài xế cho chuyến. Chỉ lúc này tài xế mới được báo riêng.
+  const handleDispatchDriver = (tripId: string, driverId: string) => {
+    const trip = db.trips.find((t) => t.id === tripId);
+    const drv = db.drivers.find((d) => d.id === driverId);
+    if (!trip || !drv) return;
+    const by = authSession?.fullName || 'Điều hành';
+    setDb((prev) => ({
+      ...prev,
+      trips: prev.trips.map((t) =>
+        t.id === tripId
+          ? {
+              ...t,
+              driverId,
+              taggedDriverIds: Array.from(new Set([driverId, ...(t.taggedDriverIds || [])])),
+              dispatchedAt: new Date().toISOString(),
+              dispatchedByName: by,
+              // Tài xế mới phải tự xác nhận lại
+              status: t.status === 'CONFIRMED' ? 'PENDING_CONFIRM' : t.status,
+              botConfirmedAt: undefined,
+              botConfirmedByDriverName: undefined,
+            }
+          : t
+      ),
+    }));
+    showToast(`Đã điều phối chuyến #${trip.tripCode} cho ${drv.fullName}`);
+    sendDispatchToTelegram(tripId, trip.tripCode, drv.fullName);
   };
 
   const handleSaveTrip = (tripData: Omit<Trip, 'id' | 'createdAt'>, existingId?: string) => {
@@ -1249,10 +1327,27 @@ export function App() {
                       {/* Xe */}
                       {veh && (
                         <div className="flex items-center justify-between gap-2 text-sm">
-                          <span className="font-medium text-slate-900">
-                            {veh.brand} {veh.model}
-                            <span className="text-slate-500 font-normal"> · {veh.seatCategory}</span>
-                          </span>
+                          {isAdmin && trip.status !== 'COMPLETED' && trip.status !== 'CANCELLED' ? (
+                            <select
+                              value={trip.vehicleId}
+                              onChange={(e) => handleChangeTripVehicle(trip.id, e.target.value)}
+                              className="min-w-0 flex-1 max-w-md h-9 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-medium text-slate-900"
+                              title="Đổi xe cho chuyến"
+                            >
+                              {tenantVehicles
+                                .filter((v) => v.id === trip.vehicleId || vehicleFitsTrip(v, trip))
+                                .map((v) => (
+                                  <option key={v.id} value={v.id}>
+                                    [{v.seatCategory}] {v.brand} {v.model} ({v.plateNumber})
+                                  </option>
+                                ))}
+                            </select>
+                          ) : (
+                            <span className="font-medium text-slate-900">
+                              {veh.brand} {veh.model}
+                              <span className="text-slate-500 font-normal"> · {veh.seatCategory}</span>
+                            </span>
+                          )}
                           <span className="px-2 py-0.5 rounded-md border border-slate-300 text-slate-800 text-xs font-medium font-mono bg-white">
                             {veh.plateNumber}
                           </span>
@@ -1299,16 +1394,82 @@ export function App() {
                           </div>
                         ) : (
                         <div className="space-y-1.5 md:border-l md:border-slate-200 md:pl-4">
-                          <div className="font-medium text-slate-900 flex items-start gap-1.5">
-                            <UserCheck className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" />
-                            <span>
-                              {drv?.fullName}
-                              <span className="text-slate-500 font-normal">
-                                {' '}
-                                · Bằng {drv?.licenseClass} · {drv?.phone}
+                          {isAdmin && trip.status !== 'COMPLETED' && trip.status !== 'CANCELLED' ? (
+                            <div className="space-y-1.5">
+                              <select
+                                value={trip.driverId || ''}
+                                onChange={async (e) => {
+                                  const newId = e.target.value;
+                                  if (!newId || newId === trip.driverId) return;
+                                  const target = tenantDrivers.find((d) => d.id === newId);
+                                  const ok = await confirm({
+                                    title: `Điều phối chuyến #${trip.tripCode}?`,
+                                    message: `Giao chuyến cho ${target?.fullName}. Tài xế sẽ nhận tin nhắn Telegram nếu đã liên kết bot.`,
+                                    confirmLabel: 'Điều phối',
+                                  });
+                                  if (ok) handleDispatchDriver(trip.id, newId);
+                                }}
+                                className="w-full h-9 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-900"
+                                title="Chọn tài xế điều phối cho chuyến"
+                              >
+                                {!trip.driverId && <option value="">Chọn tài xế điều phối</option>}
+                                {tenantDrivers.map((d) => {
+                                  const reason =
+                                    d.id === trip.driverId
+                                      ? ''
+                                      : driverUnavailableReason(
+                                          d,
+                                          trip,
+                                          veh,
+                                          busyDriverIds(db.trips, trip)
+                                        );
+                                  return (
+                                    <option key={d.id} value={d.id} disabled={!!reason}>
+                                      {d.fullName} ({d.code}){reason ? ` — ${reason}` : ''}
+                                    </option>
+                                  );
+                                })}
+                              </select>
+                              <div className="flex flex-wrap items-center gap-2 text-xs">
+                                {drv && (
+                                  <span className="text-slate-500">
+                                    Bằng {drv.licenseClass} · {drv.phone}
+                                  </span>
+                                )}
+                                {drv && !isDispatched(trip) ? (
+                                  <>
+                                    <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">
+                                      Chưa điều phối
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDispatchDriver(trip.id, drv.id)}
+                                      className="h-7 px-3 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-medium transition"
+                                    >
+                                      Điều phối & báo tài xế
+                                    </button>
+                                  </>
+                                ) : drv && trip.dispatchedAt ? (
+                                  <span className="text-slate-500">
+                                    Đã điều phối{trip.dispatchedByName ? ` bởi ${trip.dispatchedByName}` : ''}
+                                  </span>
+                                ) : null}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="font-medium text-slate-900 flex items-start gap-1.5">
+                              <UserCheck className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" />
+                              <span>
+                                {drv?.fullName || 'Chưa điều phối tài xế'}
+                                {drv && (
+                                  <span className="text-slate-500 font-normal">
+                                    {' '}
+                                    · Bằng {drv.licenseClass} · {drv.phone}
+                                  </span>
+                                )}
                               </span>
-                            </span>
-                          </div>
+                            </div>
+                          )}
                           <div className="text-slate-600 flex flex-wrap items-center gap-1">
                             <span>Đã tag:</span>
                             {taggedDrvs.map((d) => (
@@ -1322,7 +1483,7 @@ export function App() {
                           </div>
                           <div className="pt-1">
                             {trip.status === 'PENDING_CONFIRM' ? (
-                              canActWithDriver ? (
+                              canActWithDriver && isDispatched(trip) ? (
                                 <button
                                   type="button"
                                   onClick={() => handleDriverConfirmTrip(trip.id, 'APP')}
@@ -1332,7 +1493,7 @@ export function App() {
                                 </button>
                               ) : (
                                 <span className="inline-flex h-8 items-center px-3.5 rounded-full bg-amber-100 text-amber-700 text-xs font-medium">
-                                  Chờ tài xế xác nhận
+                                  {isDispatched(trip) ? 'Chờ tài xế xác nhận' : 'Chờ điều hành điều phối'}
                                 </span>
                               )
                             ) : (

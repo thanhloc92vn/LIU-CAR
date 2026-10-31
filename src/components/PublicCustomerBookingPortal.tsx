@@ -107,9 +107,6 @@ export const PublicCustomerBookingPortal: React.FC<PublicCustomerBookingPortalPr
     const preset =
       highwayPresets.find((p) => p.id === selectedPresetId) || highwayPresets[0];
     const distanceKm = (preset?.defaultDistanceKm || 150) * (isRoundTrip ? 2 : 1);
-    const defaultDriver =
-      drivers.find((d) => d.status === 'ACTIVE') || drivers[0];
-
     // Estimate base fare based on vehicle rate & distance
     const estimatedFare =
       serviceType === 'SELF_DRIVE'
@@ -146,8 +143,9 @@ export const PublicCustomerBookingPortal: React.FC<PublicCustomerBookingPortalPr
       tripCode,
       bookingType: serviceType,
       vehicleId: selectedVehicle.id,
-      driverId: defaultDriver?.id || 'DRV-01',
-      taggedDriverIds: defaultDriver ? [defaultDriver.id] : [],
+      // Khách đặt xong chưa có tài xế: điều hành sẽ chọn và điều phối trên hệ thống
+      driverId: '',
+      taggedDriverIds: [],
       customerName: customerName.trim(),
       customerPhone: customerPhone.trim(),
       customerCccd: customerCccd.trim() || undefined,
@@ -198,7 +196,7 @@ export const PublicCustomerBookingPortal: React.FC<PublicCustomerBookingPortalPr
             <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center shrink-0">
               <Car className="w-4 h-4 text-white" />
             </div>
-            <h1 className="text-sm font-semibold truncate">{tenant.shortName}</h1>
+            <h1 className="text-sm font-semibold truncate">Haydixe</h1>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
@@ -430,8 +428,8 @@ export const PublicCustomerBookingPortal: React.FC<PublicCustomerBookingPortalPr
                   Đặt Lịch Xe Thành Công!
                 </h4>
                 <p className="text-xs text-slate-600 max-w-md mx-auto">
-                  Yêu cầu đặt xe của quý khách đã được chuyển tới bộ phận Điều hành & AI Bot Zalo/Telegram của{' '}
-                  <strong>{tenant.shortName}</strong>.
+                  Yêu cầu đặt xe của quý khách đã được chuyển tới bộ phận điều hành của{' '}
+                  <strong>Haydixe</strong>. Chúng tôi sẽ xác nhận lại qua Zalo hoặc số điện thoại.
                 </p>
 
                 <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 text-left text-xs space-y-1.5">

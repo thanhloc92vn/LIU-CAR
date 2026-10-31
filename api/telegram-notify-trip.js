@@ -1,36 +1,24 @@
-// Báo lịch chuyến mới vào nhóm điều hành Telegram.
-// Chỉ nhận mã chuyến; nội dung tin được dựng ở máy chủ từ dữ liệu đã lưu, nên không ai gửi được chữ tùy ý vào nhóm.
-// Biến môi trường: TELEGRAM_BOT_TOKEN, TELEGRAM_DISPATCH_CHAT_ID (và tùy chọn SUPABASE_URL, SUPABASE_ANON_KEY).
+// Báo lịch chuyến mới vào nhóm điều hành Telegram (chỉ nhóm; tài xế chỉ được nhắn riêng khi điều hành điều phối,
+// xem telegram-dispatch-driver.js). Nội dung tin được dựng ở máy chủ từ dữ liệu đã lưu, không nhận chữ từ trình duyệt.
+// Biến môi trường: TELEGRAM_BOT_TOKEN, TELEGRAM_DISPATCH_CHAT_ID.
 
-import { getLinkByDriver, loadState, sendMessage } from './_shared.js';
+import { buildTripLines, loadState, sendMessage } from './_shared.js';
 
 // Chống bấm lặp: cùng một chuyến không gửi lại trong 30 giây (theo từng máy chủ đang chạy)
 const recent = new Map();
 
-const ROUTE_LABELS = { HIGHWAY: 'Cao tốc', NATIONAL_ROAD: 'Quốc lộ', MIXED: 'Cao tốc + quốc lộ' };
-
 function buildMessage(trip, vehicle, driver) {
-  const selfDrive = trip.bookingType === 'SELF_DRIVE';
-  const lines = [
-    `LỊCH MỚI #${trip.tripCode}`,
-    `Hình thức: ${selfDrive ? 'Thuê tự lái' : 'Có tài xế'}`,
-    `Xe: ${vehicle ? `${vehicle.brand} ${vehicle.model} (${vehicle.plateNumber}), ${vehicle.seatCategory}` : 'chưa chọn xe'}`,
-    `Lộ trình: ${trip.pickupLocation} → ${trip.dropoffLocation}`,
-    `Tuyến: ${ROUTE_LABELS[trip.routeType] || ''} · ${trip.distanceKm || 0} km`,
-    `Thời gian: ${trip.tripDate}${trip.tripEndDate && trip.tripEndDate !== trip.tripDate ? ` → ${trip.tripEndDate}` : ''} (${trip.departureTime} - ${trip.returnTime})`,
-    `Khách: ${trip.customerName} (${trip.customerPhone})`,
-  ];
-  if (!selfDrive) {
+  const lines = [`LỊCH MỚI #${trip.tripCode}`, ...buildTripLines(trip, vehicle)];
+  if (trip.bookingType !== 'SELF_DRIVE') {
     lines.push(
-      driver
+      trip.dispatchedAt && driver
         ? `Tài xế: ${driver.fullName} ${driver.telegramUsername || ''} · ${driver.phone}`.trim()
-        : 'Tài xế: chưa gán'
+        : 'Tài xế: chờ điều hành điều phối'
     );
-    lines.push('Tài xế vui lòng xác nhận nhận chuyến trên ứng dụng Haydixe.');
   } else {
     lines.push('Chuyến tự lái: chủ xe hoặc điều hành xác nhận trên ứng dụng Haydixe.');
   }
-  return lines.join('\n');
+  return lines.join(String.fromCharCode(10));
 }
 
 export default async function handler(req, res) {
@@ -57,18 +45,6 @@ export default async function handler(req, res) {
     const text = buildMessage(trip, vehicle, driver);
     const sent = await sendMessage(token, chatId, text);
     if (!sent) return res.status(502).json({ error: 'telegram_failed' });
-
-    // Nhắn riêng cho tài xế nếu đã liên kết Telegram (lỗi ở bước này không ảnh hưởng kết quả chung)
-    if (driver) {
-      try {
-        const link = await getLinkByDriver(driver.id);
-        if (link?.chat_id) await sendMessage(token, link.chat_id, `Bạn có lịch chạy mới.
-
-${text}`);
-      } catch {
-        // bỏ qua
-      }
-    }
 
     recent.set(tripId, Date.now());
     return res.status(200).json({ ok: true });
