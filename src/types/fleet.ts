@@ -81,6 +81,9 @@ export interface Driver {
   bankAccount: string;
   telegramUsername: string; // VD: @taixe_minh
   zaloPhone: string;
+  partyType?: 'EXTERNAL_DRIVER' | 'VEHICLE_OWNER'; // Tài xế ngoài (mặc định) hoặc Chủ xe
+  ownedPlateNumbers?: string[]; // Các biển số xe của chủ xe, đối chiếu với danh mục xe
+  ownedPlateNumber?: string; // (cũ) một biển số, vẫn đọc được để tương thích dữ liệu đã lưu
   status: 'ACTIVE' | 'ON_TRIP' | 'OFF_DUTY';
   baseCommissionPercent: number; // % chiết khấu / hoa hồng
   documentsVerified: {
@@ -100,6 +103,48 @@ export interface HighwayPreset {
   baseToll4To7Seats: number; // Phí cao tốc chuẩn cho xe 4-7 chỗ (1 chiều)
   description: string;
 }
+
+// Hành trình mẫu do admin cấu hình: điểm A - B, giá cước và tiền tài xế theo chặng
+export interface JourneyRoute {
+  id: string;
+  tenantId: string;
+  pointA: string;
+  pointB: string;
+  routeType: RouteType;
+  distanceKm: number;        // Quãng đường 1 chiều
+  priceOneWay: number;       // Giá cước 1 chiều
+  priceRoundTrip: number;    // Giá cước khứ hồi
+  tollOneWay?: number;       // Cước phí cao tốc (ETC) một chiều
+  tollRoundTrip?: number;    // Cước phí cao tốc (ETC) khứ hồi
+  highwayName?: string;      // Tên cao tốc / trạm thu phí cao tốc (admin tự đặt)
+  nationalRoadName?: string; // Tên quốc lộ / trạm thu phí quốc lộ (admin tự đặt)
+  nationalTollOneWay?: number;   // Cước quốc lộ (trạm BOT...) một chiều
+  nationalTollRoundTrip?: number; // Cước quốc lộ khứ hồi
+  hotelPerNight?: number;    // Tiền khách sạn mỗi đêm (tự điền khi chuyến qua đêm)
+  driverPayOneWay: number;   // Tiền trả tài xế 1 chiều
+  driverPayRoundTrip: number; // Tiền trả tài xế khứ hồi
+  // Bảng giá bổ sung. Các trường phẳng ở trên là: có tài xế, ngày thường.
+  holidayWithDriver?: JourneyPricing;   // Có tài xế, ngày lễ
+  selfDriveNormal?: JourneyPricing;     // Tự lái, ngày thường
+  selfDriveHoliday?: JourneyPricing;    // Tự lái, ngày lễ
+  note?: string;
+}
+
+export interface JourneyPricing {
+  pricePerDay?: number;      // Thuê tự lái: giá thuê mỗi ngày
+  batteryRatePerKm?: number; // Thuê tự lái xe điện: đơn giá pin đ/km (trống = 1.500)
+  priceOneWay: number;
+  priceRoundTrip: number;
+  tollOneWay: number;
+  tollRoundTrip: number;
+  nationalTollOneWay?: number;
+  nationalTollRoundTrip?: number;
+  driverPayOneWay: number;
+  driverPayRoundTrip: number;
+  hotelPerNight: number;
+}
+
+export type JourneyService = 'WITH_DRIVER' | 'SELF_DRIVE';
 
 export interface ManualExpenseItem {
   id: string;
@@ -121,6 +166,11 @@ export interface Trip {
   customerCccd?: string;     // Dùng khi thuê tự lái
   customerLicense?: string;  // GPLX khách tự lái
   tripDate: string;          // YYYY-MM-DD
+  tripEndDate?: string;      // Ngày về (chuyến nhiều ngày, có ở qua đêm)
+  journeyRouteId?: string;   // Hành trình mẫu đã áp dụng
+  driverPay?: number;        // Tiền trả tài xế cho chuyến (nhập tay được)
+  hotelFee?: number;         // Tiền khách sạn khi ở qua đêm (nhập tay)
+  hotelNote?: string;
   departureTime: string;     // HH:mm
   returnTime: string;        // HH:mm
   pickupLocation: string;
@@ -129,6 +179,9 @@ export interface Trip {
   routeDetail: string;       // Tên tuyến cụ thể (VD: Cao tốc TP.HCM - Long Thành - Phan Thiết)
   distanceKm: number;
   isRoundTrip: boolean;
+  isHolidayRate?: boolean;   // Áp bảng giá ngày lễ
+  actualKm?: number;         // Thuê tự lái xe điện: km thực tế chạy (nhập khi nhận lại xe)
+  batteryRatePerKm?: number; // Thuê tự lái xe điện: đơn giá pin đ/km
 
   // 1. Doanh thu
   baseFareRevenue: number;   // Số tiền theo chuyến
@@ -158,6 +211,8 @@ export interface Trip {
   botChannel: 'BOTH' | 'TELEGRAM' | 'ZALO';
   botConfirmedAt?: string;
   botConfirmedByDriverName?: string;
+  completedAt?: string;      // Thời điểm xác nhận hoàn thành chuyến
+  completedByName?: string;  // Người xác nhận hoàn thành (tài xế hoặc điều hành)
   notes?: string;
   createdAt: string;
 }
@@ -205,6 +260,7 @@ export interface FleetDatabase {
   vehicles: Vehicle[];
   drivers: Driver[];
   highwayPresets: HighwayPreset[];
+  journeyRoutes?: JourneyRoute[];
   trips: Trip[];
   botLogs: BotNotificationLog[];
 }

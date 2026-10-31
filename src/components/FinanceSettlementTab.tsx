@@ -81,7 +81,8 @@ export const FinanceSettlementTab: React.FC<FinanceSettlementTabProps> = ({
 
   const filteredTrips = useMemo(() => {
     return trips.filter((t) => {
-      if (t.status === 'CANCELLED') return false;
+      // Chỉ chuyến đã được xác nhận hoàn thành mới ghi nhận doanh thu và chi phí
+      if (t.status !== 'COMPLETED') return false;
       if (selectedDriverId !== 'ALL' && t.driverId !== selectedDriverId) return false;
       if (dateFrom && t.tripDate < dateFrom) return false;
       if (dateTo && t.tripDate > dateTo) return false;
@@ -279,8 +280,13 @@ export const FinanceSettlementTab: React.FC<FinanceSettlementTabProps> = ({
           <div>
             <h2 className="text-sm sm:text-lg font-extrabold text-slate-900 flex items-center gap-2">
               <Filter className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 shrink-0" />
-              <span>Bộ Lọc Đối Soát Theo Tài Xế & Ngày Tháng</span>
+              <span>Bộ lọc đối soát theo tài xế & ngày tháng</span>
             </h2>
+            <p className="text-xs text-slate-500">
+              Chỉ tính các chuyến đã hoàn thành.{' '}
+              {trips.filter((t) => t.status !== 'COMPLETED' && t.status !== 'CANCELLED').length} chuyến
+              chưa hoàn thành chưa được ghi nhận.
+            </p>
             {!isMobile && (
               <p className="text-xs text-slate-500">
                 Tự động tổng hợp Doanh thu tổng, trừ Chi phí tự cấn trừ, Chi phí nhập tay, Chi phí phạt & đậu xe để cộng ra Số thực tế còn lại vào tài khoản
@@ -324,8 +330,8 @@ export const FinanceSettlementTab: React.FC<FinanceSettlementTabProps> = ({
         >
           {/* Lọc theo tên tài xế */}
           <div>
-            <label className="block text-[11px] font-bold text-slate-700 mb-1">
-              👨‍✈️ Lọc theo Tên Tài Xế
+            <label className="block text-xs font-bold text-slate-700 mb-1">
+              Lọc theo Tên Tài Xế
             </label>
             <select
               value={selectedDriverId}
@@ -343,8 +349,8 @@ export const FinanceSettlementTab: React.FC<FinanceSettlementTabProps> = ({
 
           {/* Chọn nhanh Kỳ / Tháng */}
           <div>
-            <label className="block text-[11px] font-bold text-slate-700 mb-1">
-              📅 Chọn Nhanh Kỳ / Tháng
+            <label className="block text-xs font-bold text-slate-700 mb-1">
+              Chọn Nhanh Kỳ / Tháng
             </label>
             <select
               value={monthPreset}
@@ -361,7 +367,7 @@ export const FinanceSettlementTab: React.FC<FinanceSettlementTabProps> = ({
           {/* Từ ngày - Đến ngày */}
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Từ ngày</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Từ ngày</label>
               <input
                 type="date"
                 value={dateFrom}
@@ -373,7 +379,7 @@ export const FinanceSettlementTab: React.FC<FinanceSettlementTabProps> = ({
               />
             </div>
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Đến ngày</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Đến ngày</label>
               <input
                 type="date"
                 value={dateTo}
@@ -389,8 +395,8 @@ export const FinanceSettlementTab: React.FC<FinanceSettlementTabProps> = ({
           {/* Lọc theo Loại ghế & Tuyến đường */}
           <div className={isMobile ? 'grid grid-cols-2 gap-2' : 'contents'}>
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                💺 Loại Ghế
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Loại Ghế
               </label>
               <select
                 value={seatFilter}
@@ -407,8 +413,8 @@ export const FinanceSettlementTab: React.FC<FinanceSettlementTabProps> = ({
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                🛣️ Tuyến Đường
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Tuyến Đường
               </label>
               <select
                 value={routeFilter}
@@ -416,9 +422,9 @@ export const FinanceSettlementTab: React.FC<FinanceSettlementTabProps> = ({
                 className="w-full rounded-xl border border-slate-300 bg-slate-50 px-2.5 py-2 text-xs font-semibold text-slate-900"
               >
                 <option value="ALL">Tất cả tuyến</option>
-                <option value="HIGHWAY">🛣️ Cao tốc</option>
-                <option value="NATIONAL_ROAD">🛤️ Quốc lộ</option>
-                <option value="MIXED">🔀 Kết hợp</option>
+                <option value="HIGHWAY">Cao tốc</option>
+                <option value="NATIONAL_ROAD">Quốc lộ</option>
+                <option value="MIXED">Kết hợp</option>
               </select>
             </div>
           </div>
@@ -434,17 +440,17 @@ export const FinanceSettlementTab: React.FC<FinanceSettlementTabProps> = ({
         }
       >
         {/* Card 1: Tổng Doanh Thu */}
-        <div className="bg-white rounded-2xl p-3.5 border border-slate-200 shadow-sm flex flex-col justify-between">
+        <div className="bg-white rounded-2xl p-4 shadow-sm flex flex-col justify-between">
           <div>
-            <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 mb-1">
-              <span>1. DOANH THU (+)</span>
-              <TrendingUp className="w-4 h-4 text-emerald-600 shrink-0" />
+            <div className="flex items-center justify-between text-xs font-medium text-slate-500 mb-1">
+              <span>Doanh thu</span>
+              <TrendingUp className="w-4 h-4 text-slate-400 shrink-0" />
             </div>
-            <div className="text-base sm:text-xl font-extrabold text-emerald-700">
+            <div className="text-xl sm:text-2xl font-semibold tracking-tight text-slate-900">
               {formatVND(summary.grossRevenue)}
             </div>
           </div>
-          <div className="mt-2 pt-2 border-t border-slate-100 text-[10px] text-slate-500 space-y-0.5">
+          <div className="mt-2 pt-2 border-t border-slate-100 text-xs text-slate-500 space-y-0.5">
             <div className="flex justify-between">
               <span>Số chuyến:</span>
               <strong className="text-slate-800">{summary.tripCount} chuyến</strong>
@@ -457,17 +463,17 @@ export const FinanceSettlementTab: React.FC<FinanceSettlementTabProps> = ({
         </div>
 
         {/* Card 2: Chi Phí Tự Cấn Trừ */}
-        <div className="bg-white rounded-2xl p-3.5 border border-slate-200 shadow-sm flex flex-col justify-between">
+        <div className="bg-white rounded-2xl p-4 shadow-sm flex flex-col justify-between">
           <div>
-            <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 mb-1">
-              <span>2. TỰ CẤN TRỪ (-)</span>
-              <Navigation className="w-4 h-4 text-amber-600 shrink-0" />
+            <div className="flex items-center justify-between text-xs font-medium text-slate-500 mb-1">
+              <span>Cấn trừ tự động</span>
+              <Navigation className="w-4 h-4 text-slate-400 shrink-0" />
             </div>
-            <div className="text-base sm:text-xl font-extrabold text-amber-700">
+            <div className="text-xl sm:text-2xl font-semibold tracking-tight text-slate-900">
               -{formatVND(summary.totalAutoDeducted)}
             </div>
           </div>
-          <div className="mt-2 pt-2 border-t border-slate-100 text-[10px] text-slate-500 space-y-0.5">
+          <div className="mt-2 pt-2 border-t border-slate-100 text-xs text-slate-500 space-y-0.5">
             <div className="flex justify-between">
               <span>Cao tốc:</span>
               <strong className="text-slate-800">{formatVND(summary.autoHighwayToll)}</strong>
@@ -482,39 +488,39 @@ export const FinanceSettlementTab: React.FC<FinanceSettlementTabProps> = ({
         </div>
 
         {/* Card 3: Chi Phí Nhập Tay */}
-        <div className="bg-white rounded-2xl p-3.5 border border-slate-200 shadow-sm flex flex-col justify-between">
+        <div className="bg-white rounded-2xl p-4 shadow-sm flex flex-col justify-between">
           <div>
-            <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 mb-1">
-              <span>3. NHẬP TAY (-)</span>
-              <Receipt className="w-4 h-4 text-orange-600 shrink-0" />
+            <div className="flex items-center justify-between text-xs font-medium text-slate-500 mb-1">
+              <span>Chi phí nhập tay</span>
+              <Receipt className="w-4 h-4 text-slate-400 shrink-0" />
             </div>
-            <div className="text-base sm:text-xl font-extrabold text-orange-600">
+            <div className="text-xl sm:text-2xl font-semibold tracking-tight text-slate-900">
               -{formatVND(summary.totalManualExpense)}
             </div>
           </div>
-          <div className="mt-2 pt-2 border-t border-slate-100 text-[10px] text-slate-500">
+          <div className="mt-2 pt-2 border-t border-slate-100 text-xs text-slate-500">
             Rửa xe, nước uống, phụ cấp ăn nghỉ, xăng lẻ...
           </div>
         </div>
 
         {/* Card 4: Chi Phí Phát Sinh Rủi Ro (Phạt & Đậu Xe) */}
-        <div className="bg-white rounded-2xl p-3.5 border border-rose-200 shadow-sm flex flex-col justify-between">
+        <div className="bg-white rounded-2xl p-4 shadow-sm flex flex-col justify-between">
           <div>
-            <div className="flex items-center justify-between text-[11px] font-bold text-rose-700 mb-1">
-              <span>4. PHẠT & ĐẬU XE (-)</span>
-              <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+            <div className="flex items-center justify-between text-xs font-medium text-slate-500 mb-1">
+              <span>Phạt & đậu xe</span>
+              <AlertTriangle className="w-4 h-4 text-slate-400 shrink-0" />
             </div>
-            <div className="text-base sm:text-xl font-extrabold text-rose-600">
+            <div className="text-xl sm:text-2xl font-semibold tracking-tight text-rose-600">
               -{formatVND(summary.totalRiskExpense)}
             </div>
           </div>
-          <div className="mt-2 pt-2 border-t border-rose-100 text-[10px] text-slate-600 space-y-0.5">
+          <div className="mt-2 pt-2 border-t border-slate-100 text-xs text-slate-600 space-y-0.5">
             <div className="flex justify-between">
-              <span>🅿️ Đậu xe:</span>
+              <span>Đậu xe:</span>
               <strong className="text-slate-900">{formatVND(summary.parkingFee)}</strong>
             </div>
             <div className="flex justify-between">
-              <span>🚨 Phạt GT:</span>
+              <span>Phạt GT:</span>
               <strong className="text-rose-700">{formatVND(summary.trafficFineFee)}</strong>
             </div>
           </div>
@@ -524,12 +530,12 @@ export const FinanceSettlementTab: React.FC<FinanceSettlementTabProps> = ({
         <div
           className={`${
             isMobile ? 'col-span-2' : ''
-          } bg-gradient-to-br from-blue-700 via-blue-800 to-slate-900 text-white rounded-2xl p-4 shadow-lg shadow-blue-900/20 flex flex-col justify-between`}
+          } bg-slate-900 text-white rounded-2xl p-4 flex flex-col justify-between`}
         >
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-[11px] font-bold text-blue-200 uppercase">
-                5. SỐ THỰC TẾ CÒN LẠI VÀO TÀI KHOẢN (=)
+              <div className="text-xs font-medium text-slate-400">
+                Thực còn vào tài khoản
               </div>
               <div className="text-xl sm:text-2xl font-extrabold text-white mt-0.5">
                 {formatVND(summary.netRemainingToAccount)}
@@ -539,7 +545,7 @@ export const FinanceSettlementTab: React.FC<FinanceSettlementTabProps> = ({
               <Wallet className="w-5 h-5" />
             </div>
           </div>
-          <div className="mt-2.5 pt-2 border-t border-white/15 text-[10px] text-blue-100">
+          <div className="mt-2.5 pt-2 border-t border-white/15 text-xs text-slate-400">
             Công thức: Doanh thu ({formatVND(summary.grossRevenue)}) − Tự cấn trừ (
             {formatVND(summary.totalAutoDeducted)}) − Nhập tay ({formatVND(summary.totalManualExpense)})
             − Phạt & Đậu xe ({formatVND(summary.totalRiskExpense)})
@@ -552,7 +558,7 @@ export const FinanceSettlementTab: React.FC<FinanceSettlementTabProps> = ({
         <div className="px-4 py-3.5 border-b border-slate-200">
           <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
             <User className="w-4 h-4 text-blue-600 shrink-0" />
-            <span>Tổng Hợp Theo Từng Tài Xế (Chạm để lọc riêng)</span>
+            <span>Tổng hợp theo từng tài xế (chạm để lọc riêng)</span>
           </h3>
         </div>
 
@@ -572,23 +578,23 @@ export const FinanceSettlementTab: React.FC<FinanceSettlementTabProps> = ({
                     <div>
                       <div className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
                         <span>{st.driver.fullName}</span>
-                        <span className="px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 text-[10px]">
+                        <span className="px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 text-xs">
                           Bằng {st.driver.licenseClass}
                         </span>
                       </div>
-                      <div className="text-[10px] text-slate-500">
+                      <div className="text-xs text-slate-500">
                         {st.tripCount} chuyến ({st.highwayCount} Cao tốc • {st.nationalCount} Quốc lộ)
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-[10px] text-blue-700 font-bold">Thực còn vào TK</div>
+                      <div className="text-xs text-blue-700 font-bold">Thực còn vào TK</div>
                       <div className="text-sm font-extrabold text-blue-900">
                         {formatVND(st.net)}
                       </div>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-4 gap-1.5 text-[10px] bg-slate-50 p-2 rounded-xl border border-slate-200/80">
+                  <div className="grid grid-cols-4 gap-1.5 text-xs bg-slate-50 p-2 rounded-xl border border-slate-200/80">
                     <div>
                       <div className="text-slate-400">Tổng thu</div>
                       <div className="font-bold text-emerald-700">{formatVND(st.gross)}</div>
@@ -614,14 +620,14 @@ export const FinanceSettlementTab: React.FC<FinanceSettlementTabProps> = ({
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase text-slate-600">
-                  <th className="py-3 px-4">Tài Xế & Hồ Sơ GPLX</th>
-                  <th className="py-3 px-3 text-center">Số Chuyến</th>
-                  <th className="py-3 px-3 text-right">Doanh Thu Tổng (+)</th>
-                  <th className="py-3 px-3 text-right">Tự Cấn Trừ (-)</th>
-                  <th className="py-3 px-3 text-right">Chi Phí Nhập Tay (-)</th>
-                  <th className="py-3 px-3 text-right">Phí Đậu Xe (-)</th>
-                  <th className="py-3 px-3 text-right">Phí Phạt GT (-)</th>
+                <tr className="bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-600">
+                  <th className="py-3 px-4">Tài xế & hồ sơ GPLX</th>
+                  <th className="py-3 px-3 text-center">Số chuyến</th>
+                  <th className="py-3 px-3 text-right">Doanh thu tổng (+)</th>
+                  <th className="py-3 px-3 text-right">Tự cấn trừ (-)</th>
+                  <th className="py-3 px-3 text-right">Chi phí nhập tay (-)</th>
+                  <th className="py-3 px-3 text-right">Phí đậu xe (-)</th>
+                  <th className="py-3 px-3 text-right">Phí phạt GT (-)</th>
                   <th className="py-3 px-4 text-right bg-blue-50/60 text-blue-900">
                     Thực Tế Còn Lại Vào TK (=)
                   </th>
@@ -641,11 +647,11 @@ export const FinanceSettlementTab: React.FC<FinanceSettlementTabProps> = ({
                       <td className="py-3 px-4">
                         <div className="font-bold text-slate-900 flex items-center gap-1.5">
                           <span>{st.driver.fullName}</span>
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 font-semibold">
+                          <span className="text-xs px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 font-semibold">
                             Hạng {st.driver.licenseClass}
                           </span>
                         </div>
-                        <div className="text-[11px] text-slate-500">
+                        <div className="text-xs text-slate-500">
                           GPLX: {st.driver.licenseNumber} • TK: {st.driver.bankName} (
                           {st.driver.bankAccount})
                         </div>
@@ -654,7 +660,7 @@ export const FinanceSettlementTab: React.FC<FinanceSettlementTabProps> = ({
                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-800">
                           {st.tripCount} chuyến
                         </span>
-                        <div className="text-[10px] text-slate-500 mt-0.5">
+                        <div className="text-xs text-slate-500 mt-0.5">
                           {st.highwayCount} Cao tốc • {st.nationalCount} Quốc lộ
                         </div>
                       </td>
@@ -708,7 +714,7 @@ export const FinanceSettlementTab: React.FC<FinanceSettlementTabProps> = ({
                 <div key={trip.id} className="p-3.5 sm:p-5 hover:bg-slate-50/70 transition space-y-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="px-2 py-0.5 rounded bg-slate-900 text-white text-[11px] font-bold">
+                      <span className="px-2 py-0.5 rounded bg-slate-900 text-white text-xs font-bold">
                         #{trip.tripCode}
                       </span>
                       <span className="text-xs font-semibold text-slate-600 flex items-center gap-1">
@@ -716,7 +722,7 @@ export const FinanceSettlementTab: React.FC<FinanceSettlementTabProps> = ({
                         {trip.tripDate}
                       </span>
                       <span
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                        className={`px-2 py-0.5 rounded-full text-xs font-bold ${
                           trip.routeType === 'HIGHWAY'
                             ? 'bg-indigo-100 text-indigo-800'
                             : trip.routeType === 'NATIONAL_ROAD'
@@ -725,13 +731,13 @@ export const FinanceSettlementTab: React.FC<FinanceSettlementTabProps> = ({
                         }`}
                       >
                         {trip.routeType === 'HIGHWAY'
-                          ? '🛣️ Cao tốc'
+                          ? 'Cao tốc'
                           : trip.routeType === 'NATIONAL_ROAD'
-                          ? '🛤️ Quốc lộ'
-                          : '🔀 Kết hợp'}
+                          ? 'Quốc lộ'
+                          : 'Kết hợp'}
                       </span>
                       {veh && (
-                        <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-bold">
+                        <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 text-xs font-bold">
                           {veh.seatCategory} • {veh.brand} {veh.model}
                         </span>
                       )}
@@ -741,7 +747,7 @@ export const FinanceSettlementTab: React.FC<FinanceSettlementTabProps> = ({
                       <button
                         type="button"
                         onClick={() => handleOpenQuickExpense(trip)}
-                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[11px] font-bold transition"
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold transition"
                       >
                         <PlusCircle className="w-3.5 h-3.5" />
                         Phạt / Đậu xe
@@ -749,7 +755,7 @@ export const FinanceSettlementTab: React.FC<FinanceSettlementTabProps> = ({
                       <button
                         type="button"
                         onClick={() => onEditTrip(trip)}
-                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-semibold transition"
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition"
                       >
                         <Edit3 className="w-3.5 h-3.5" />
                         Sửa
@@ -758,7 +764,7 @@ export const FinanceSettlementTab: React.FC<FinanceSettlementTabProps> = ({
                   </div>
 
                   <div className="text-xs sm:text-sm font-bold text-slate-900">
-                    {trip.pickupLocation} ➔ {trip.dropoffLocation}{' '}
+                    {trip.pickupLocation} → {trip.dropoffLocation}{' '}
                     <span className="text-xs font-normal text-slate-500">
                       ({trip.distanceKm} km • Tài xế: {drv?.fullName})
                     </span>
@@ -768,20 +774,20 @@ export const FinanceSettlementTab: React.FC<FinanceSettlementTabProps> = ({
                   {(trip.parkingFee > 0 || trip.trafficFineFee > 0 || trip.manualExpenseTotal > 0) && (
                     <div className="flex flex-wrap gap-1.5">
                       {trip.parkingFee > 0 && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-50 border border-blue-200 text-[10px] text-blue-800 font-medium">
-                          🅿️ Đậu xe: {formatVND(trip.parkingFee)}{' '}
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-50 border border-blue-200 text-xs text-blue-800 font-medium">
+                          Đậu xe: {formatVND(trip.parkingFee)}{' '}
                           {trip.parkingNote ? `(${trip.parkingNote})` : ''}
                         </span>
                       )}
                       {trip.trafficFineFee > 0 && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-rose-50 border border-rose-200 text-[10px] text-rose-800 font-bold">
-                          🚨 Phạt GT: {formatVND(trip.trafficFineFee)}{' '}
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-rose-50 border border-rose-200 text-xs text-rose-800 font-bold">
+                          Phạt GT: {formatVND(trip.trafficFineFee)}{' '}
                           {trip.trafficFineNote ? `(${trip.trafficFineNote})` : ''}
                         </span>
                       )}
                       {trip.manualExpenseTotal > 0 && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-50 border border-amber-200 text-[10px] text-amber-900 font-medium">
-                          🧾 Nhập tay: {formatVND(trip.manualExpenseTotal)}{' '}
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-50 border border-amber-200 text-xs text-amber-900 font-medium">
+                          Nhập tay: {formatVND(trip.manualExpenseTotal)}{' '}
                           {trip.manualExpenseNote ? `(${trip.manualExpenseNote})` : ''}
                         </span>
                       )}
@@ -797,23 +803,23 @@ export const FinanceSettlementTab: React.FC<FinanceSettlementTabProps> = ({
                     }
                   >
                     <div>
-                      <div className="text-[10px] text-slate-500">Doanh thu chuyến (+)</div>
+                      <div className="text-xs text-slate-500">Doanh thu chuyến (+)</div>
                       <div className="font-bold text-emerald-700">{formatVND(b.grossRevenue)}</div>
                     </div>
                     <div>
-                      <div className="text-[10px] text-slate-500">Tự cấn trừ (-)</div>
+                      <div className="text-xs text-slate-500">Tự cấn trừ (-)</div>
                       <div className="font-semibold text-amber-700">
                         -{formatVND(b.totalAutoDeducted)}
                       </div>
                     </div>
                     <div>
-                      <div className="text-[10px] text-slate-500">Nhập tay + Đậu xe/Phạt (-)</div>
+                      <div className="text-xs text-slate-500">Nhập tay + Đậu xe/Phạt (-)</div>
                       <div className="font-semibold text-rose-600">
                         -{formatVND(b.totalManualExpense + b.totalRiskExpense)}
                       </div>
                     </div>
                     <div className={isMobile ? 'border-t border-slate-200 pt-1.5 col-span-2 flex items-center justify-between' : 'border-l border-slate-200 pl-3'}>
-                      <div className="text-[10px] font-bold text-blue-700">Thực tế còn vào TK (=)</div>
+                      <div className="text-xs font-bold text-blue-700">Thực tế còn vào TK (=)</div>
                       <div className="font-extrabold text-blue-900 text-sm">
                         {formatVND(b.netRemainingToAccount)}
                       </div>
@@ -828,21 +834,21 @@ export const FinanceSettlementTab: React.FC<FinanceSettlementTabProps> = ({
 
       {/* Modal Nhập nhanh Chi phí */}
       {quickExpenseTrip && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-md p-4">
           <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-md overflow-hidden">
-            <div className="bg-slate-900 text-white px-5 py-3.5 flex items-center justify-between">
+            <div className="bg-white text-slate-900 border-b border-slate-200 px-5 py-4 flex items-center justify-between">
               <div>
                 <h4 className="text-sm font-bold">
                   Cập Nhật Nhanh Chi Phí #{quickExpenseTrip.tripCode}
                 </h4>
-                <p className="text-[11px] text-slate-300">
+                <p className="text-xs text-slate-500">
                   Nhập chi phí đậu xe, biên bản phạt giao thông hoặc chi phí nhập tay
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setQuickExpenseTrip(null)}
-                className="text-slate-400 hover:text-white text-sm font-bold"
+                className="text-slate-400 hover:text-slate-900 text-sm font-bold"
               >
                 ✕
               </button>
@@ -851,7 +857,7 @@ export const FinanceSettlementTab: React.FC<FinanceSettlementTabProps> = ({
               <div className="bg-blue-50/70 p-3 rounded-xl border border-blue-200 space-y-2">
                 <label className="text-xs font-bold text-blue-900 flex items-center gap-1.5">
                   <ParkingCircle className="w-4 h-4 text-blue-600" />
-                  1. Chi Phí Đậu Xe / Bến Bãi (VNĐ)
+                  Chi phí đậu xe / bến bãi (VNĐ)
                 </label>
                 <input
                   type="number"
@@ -872,7 +878,7 @@ export const FinanceSettlementTab: React.FC<FinanceSettlementTabProps> = ({
               <div className="bg-rose-50/70 p-3 rounded-xl border border-rose-200 space-y-2">
                 <label className="text-xs font-bold text-rose-900 flex items-center gap-1.5">
                   <FileWarning className="w-4 h-4 text-rose-600" />
-                  2. Chi Phí Phạt Giao Thông / Phạt Nguội (VNĐ)
+                  Chi phí phạt giao thông / phạt nguội (VNĐ)
                 </label>
                 <input
                   type="number"
@@ -893,7 +899,7 @@ export const FinanceSettlementTab: React.FC<FinanceSettlementTabProps> = ({
               <div className="bg-amber-50/70 p-3 rounded-xl border border-amber-200 space-y-2">
                 <label className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
                   <Receipt className="w-4 h-4 text-amber-600" />
-                  3. Chi Phí Nhập Tay Khác (VNĐ)
+                  Chi phí nhập tay khác (VNĐ)
                 </label>
                 <input
                   type="number"

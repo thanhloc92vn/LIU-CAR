@@ -10,7 +10,6 @@ import {
   Phone,
   Search,
   ShieldCheck,
-  Sparkles,
   User,
   UserCheck,
   X,
@@ -192,82 +191,70 @@ export const PublicCustomerBookingPortal: React.FC<PublicCustomerBookingPortalPr
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col">
-      {/* Public Top Header */}
-      <header className="bg-slate-900 text-white sticky top-0 z-30 shadow-md border-b border-slate-800">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-inner shrink-0">
-              <Car className="w-5 h-5 text-white" />
+      {/* Header */}
+      <header className="glass sticky top-0 z-30 border-b border-slate-200/80">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center shrink-0">
+              <Car className="w-4 h-4 text-white" />
             </div>
-            <div>
-              <h1 className="text-sm sm:text-base font-extrabold tracking-tight">
-                {tenant.shortName} — Đặt Xe Trực Tuyến
-              </h1>
-              <p className="text-[11px] text-slate-400">
-                Thuê xe tự lái & Xe hợp đồng có tài xế (4 chỗ, 7 chỗ, Limousine, 16 chỗ)
-              </p>
-            </div>
+            <h1 className="text-sm font-semibold truncate">{tenant.shortName}</h1>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
               onClick={() => setShowLookupModal(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 text-xs font-bold transition"
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-xs font-medium text-slate-700 hover:bg-slate-200/70 transition"
             >
-              <Search className="w-3.5 h-3.5 text-blue-400" />
-              <span>Tra cứu lịch đã đặt</span>
+              <Search className="w-4 h-4 text-slate-500" />
+              <span>Tra cứu lịch đặt</span>
             </button>
 
             <a
               href={`tel:${tenant.hotline.replace(/\./g, '')}`}
-              className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-extrabold shadow-sm transition"
+              className="hidden sm:inline-flex items-center gap-1.5 h-8 px-3.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition"
             >
               <Phone className="w-3.5 h-3.5" />
-              <span>Hotline: {tenant.hotline}</span>
+              <span>{tenant.hotline}</span>
             </a>
           </div>
         </div>
       </header>
 
-      {/* Hero Section & Quick Booking Filter */}
-      <section className="bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 text-white py-8 sm:py-12 px-4">
-        <div className="max-w-5xl mx-auto text-center space-y-4">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-200 text-xs font-bold">
-            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-            <span>Đặt lịch nhanh chóng • Xác nhận tự động qua AI Bot Zalo & Telegram</span>
-          </div>
-          <h2 className="text-2xl sm:text-4xl font-extrabold tracking-tight">
-            Đặt Xe Tự Lái & Xe Có Tài Xế Chuyên Nghiệp
+      {/* Hero */}
+      <section className="bg-white px-4 pt-10 pb-8 sm:pt-16 sm:pb-12">
+        <div className="max-w-3xl mx-auto text-center space-y-4">
+          <h2 className="text-3xl sm:text-5xl font-semibold tracking-tight text-slate-900">
+            Đặt xe tự lái & xe có tài xế
           </h2>
-          <p className="text-xs sm:text-sm text-slate-300 max-w-2xl mx-auto">
-            Đa dạng các dòng xe đời mới 4 chỗ, 5 chỗ, 7 chỗ, 9 chỗ Limousine và 16 chỗ. Tự chọn lộ trình đi Cao tốc hoặc Quốc lộ minh bạch chi phí.
+          <p className="text-base sm:text-lg text-slate-600 max-w-xl mx-auto">
+            Xe 4, 5, 7, 9 chỗ Limousine và 16 chỗ. Chọn lộ trình cao tốc hoặc quốc lộ với chi phí rõ ràng, xác nhận qua Zalo và Telegram.
           </p>
 
-          {/* Service Mode Switch */}
-          <div className="pt-2 flex justify-center">
-            <div className="inline-flex rounded-2xl bg-slate-800/90 p-1.5 border border-slate-700">
+          <div className="pt-3 flex justify-center">
+            <div className="inline-flex rounded-full bg-slate-100 p-1">
               <button
                 type="button"
                 onClick={() => setServiceType('WITH_DRIVER')}
-                className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-extrabold transition ${
+                className={`px-5 h-9 rounded-full text-sm font-medium transition ${
                   serviceType === 'WITH_DRIVER'
-                    ? 'bg-blue-600 text-white shadow-lg'
-                    : 'text-slate-300 hover:text-white'
+                    ? 'bg-white text-slate-900 shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                👨‍✈️ Thuê Xe Có Tài Xế Đưa Đón
+                Có tài xế
               </button>
               <button
                 type="button"
                 onClick={() => setServiceType('SELF_DRIVE')}
-                className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-extrabold transition ${
+                className={`px-5 h-9 rounded-full text-sm font-medium transition ${
                   serviceType === 'SELF_DRIVE'
-                    ? 'bg-emerald-600 text-white shadow-lg'
-                    : 'text-slate-300 hover:text-white'
+                    ? 'bg-white text-slate-900 shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                🔑 Thuê Xe Tự Lái Theo Ngày
+                Tự lái theo ngày
               </button>
             </div>
           </div>
@@ -277,7 +264,7 @@ export const PublicCustomerBookingPortal: React.FC<PublicCustomerBookingPortalPr
       {/* Main Vehicle Catalog */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 space-y-6">
         {/* Filter Bar */}
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 flex flex-wrap items-center justify-between gap-3">
+        <div className="bg-white rounded-2xl p-3 shadow-sm flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
             <span className="text-xs font-bold text-slate-600 mr-1 shrink-0">Chọn số ghế:</span>
             {SEAT_OPTIONS.map((seat) => (
@@ -285,9 +272,9 @@ export const PublicCustomerBookingPortal: React.FC<PublicCustomerBookingPortalPr
                 key={seat}
                 type="button"
                 onClick={() => setSeatFilter(seat)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 transition ${
+                className={`px-3.5 h-8 rounded-full text-xs font-medium shrink-0 transition ${
                   seatFilter === seat
-                    ? 'bg-blue-600 text-white shadow-sm'
+                    ? 'bg-slate-900 text-white'
                     : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                 }`}
               >
@@ -301,7 +288,7 @@ export const PublicCustomerBookingPortal: React.FC<PublicCustomerBookingPortalPr
             <select
               value={brandFilter}
               onChange={(e) => setBrandFilter(e.target.value)}
-              className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-800"
+              className="h-8 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-800"
             >
               <option value="ALL">Tất cả hãng xe</option>
               {brands.map((b) => (
@@ -318,31 +305,31 @@ export const PublicCustomerBookingPortal: React.FC<PublicCustomerBookingPortalPr
           {filteredVehicles.map((veh) => (
             <div
               key={veh.id}
-              className="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-400 transition overflow-hidden flex flex-col justify-between"
+              className="bg-white rounded-2xl shadow-sm hover:shadow-md transition overflow-hidden flex flex-col justify-between"
             >
               <div className="p-5 space-y-3">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-1.5">
-                    <span className="px-3 py-1 rounded-lg bg-blue-600 text-white text-xs font-extrabold">
+                    <span className="px-2.5 py-0.5 rounded-full bg-slate-900 text-white text-xs font-medium">
                       {veh.seatCategory}
                     </span>
                     <span
-                      className={`px-2 py-0.5 rounded-lg text-[11px] font-bold ${
+                      className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
                         veh.fuelType === 'ELECTRIC'
-                          ? 'bg-teal-100 text-teal-800 border border-teal-300'
+                          ? 'bg-emerald-100 text-emerald-700'
                           : veh.fuelType === 'DIESEL'
-                          ? 'bg-slate-200 text-slate-800 border border-slate-400'
-                          : 'bg-orange-100 text-orange-800 border border-orange-300'
+                          ? 'bg-slate-100 text-slate-700'
+                          : 'bg-slate-100 text-slate-700'
                       }`}
                     >
                       {FUEL_TYPE_LABELS[veh.fuelType || 'GASOLINE']}
                     </span>
                   </div>
                   <span
-                    className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                    className={`text-xs font-medium ${
                       veh.status === 'AVAILABLE'
-                        ? 'bg-emerald-100 text-emerald-800'
-                        : 'bg-amber-100 text-amber-800'
+                        ? 'text-emerald-600'
+                        : 'text-amber-600'
                     }`}
                   >
                     {veh.status === 'AVAILABLE' ? '● Sẵn sàng nhận lịch' : '● Đặt lịch trước'}
@@ -350,20 +337,20 @@ export const PublicCustomerBookingPortal: React.FC<PublicCustomerBookingPortalPr
                 </div>
 
                 <div>
-                  <div className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                  <div className="text-xs text-slate-500">
                     {veh.brand} • {veh.vehicleType} • Đời {veh.year}
                   </div>
-                  <h3 className="text-lg font-extrabold text-slate-900 mt-0.5">{veh.model}</h3>
+                  <h3 className="text-xl font-semibold tracking-tight text-slate-900 mt-0.5">{veh.model}</h3>
                   <div className="text-xs text-slate-500 mt-0.5">
                     Màu: <strong>{veh.color}</strong> • Biển số:{' '}
                     <span className="font-mono font-bold text-slate-800">{veh.plateNumber}</span>
                   </div>
                 </div>
 
-                <div className="bg-slate-50 rounded-xl p-3 border border-slate-200/70 space-y-1.5 text-xs">
+                <div className="bg-slate-50 rounded-xl p-3 space-y-1.5 text-sm">
                   <div className="flex justify-between">
                     <span className="text-slate-500">Giá thuê tham khảo:</span>
-                    <strong className="text-emerald-700 text-sm">
+                    <strong className="text-slate-900 text-sm">
                       Từ {formatVND(veh.dailyRateSelfDrive)}/ngày
                     </strong>
                   </div>
@@ -377,7 +364,7 @@ export const PublicCustomerBookingPortal: React.FC<PublicCustomerBookingPortalPr
                         : 'Xe hợp đồng có tài xế'}
                     </strong>
                   </div>
-                  <div className="text-[11px] text-slate-500 pt-1 border-t border-slate-200/60">
+                  <div className="text-xs text-slate-500 pt-1 border-t border-slate-200/60">
                     ✓ Xe trang bị sẵn thẻ thu phí tự động ETC Cao tốc, bảo hiểm đầy đủ.
                   </div>
                 </div>
@@ -387,10 +374,10 @@ export const PublicCustomerBookingPortal: React.FC<PublicCustomerBookingPortalPr
                 <button
                   type="button"
                   onClick={() => handleOpenBookVehicle(veh)}
-                  className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-extrabold shadow-md shadow-blue-600/20 transition flex items-center justify-center gap-2"
+                  className="w-full h-11 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition flex items-center justify-center gap-2"
                 >
                   <Calendar className="w-4 h-4" />
-                  <span>Chọn Đặt Lịch Xe Này</span>
+                  <span>Chọn đặt lịch xe này</span>
                 </button>
               </div>
             </div>
@@ -399,10 +386,10 @@ export const PublicCustomerBookingPortal: React.FC<PublicCustomerBookingPortalPr
       </main>
 
       {/* Footer (Không lộ nút Admin, chỉ có thông tin công ty) */}
-      <footer className="bg-slate-900 text-slate-400 text-xs py-6 px-4 border-t border-slate-800 mt-10">
+      <footer className="text-slate-500 text-xs py-8 px-4 border-t border-slate-200 mt-10">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
           <div>
-            <strong className="text-white">{tenant.name}</strong> • MST: {tenant.taxCode}
+            <strong className="text-slate-800">{tenant.name}</strong> • MST: {tenant.taxCode}
           </div>
           <div>Hotline điều hành 24/7: {tenant.hotline}</div>
         </div>
@@ -410,15 +397,15 @@ export const PublicCustomerBookingPortal: React.FC<PublicCustomerBookingPortalPr
 
       {/* Modal Đặt Lịch Xe Dành Cho Khách Hàng */}
       {selectedVehicle && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/75 backdrop-blur-sm p-3 sm:p-4 overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-md p-3 sm:p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-xl max-h-[92vh] flex flex-col overflow-hidden">
-            <div className="bg-slate-900 text-white px-5 py-4 flex items-center justify-between">
+            <div className="bg-white text-slate-900 border-b border-slate-200 px-5 py-4 flex items-center justify-between">
               <div>
                 <h3 className="text-base font-bold">
                   Đặt Lịch Xe: [{selectedVehicle.seatCategory}] {selectedVehicle.brand}{' '}
                   {selectedVehicle.model}
                 </h3>
-                <p className="text-xs text-blue-200">
+                <p className="text-xs text-slate-500">
                   Biển số: {selectedVehicle.plateNumber} • Xác nhận lịch tự động qua Zalo / SĐT
                 </p>
               </div>
@@ -428,7 +415,7 @@ export const PublicCustomerBookingPortal: React.FC<PublicCustomerBookingPortalPr
                   setSelectedVehicle(null);
                   setCreatedBooking(null);
                 }}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-white"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-900"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -476,7 +463,7 @@ export const PublicCustomerBookingPortal: React.FC<PublicCustomerBookingPortalPr
                   <div className="flex justify-between">
                     <span className="text-slate-500">Lộ trình:</span>
                     <strong>
-                      {createdBooking.pickupLocation} ➔ {createdBooking.dropoffLocation} (
+                      {createdBooking.pickupLocation} → {createdBooking.dropoffLocation} (
                       {createdBooking.routeType === 'HIGHWAY' ? 'Đi Cao tốc' : 'Đi Quốc lộ'})
                     </strong>
                   </div>
@@ -508,7 +495,7 @@ export const PublicCustomerBookingPortal: React.FC<PublicCustomerBookingPortalPr
                         : 'text-slate-700'
                     }`}
                   >
-                    👨‍✈️ Xe Có Tài Xế
+                    Xe Có Tài Xế
                   </button>
                   <button
                     type="button"
@@ -519,7 +506,7 @@ export const PublicCustomerBookingPortal: React.FC<PublicCustomerBookingPortalPr
                         : 'text-slate-700'
                     }`}
                   >
-                    🔑 Thuê Tự Lái
+                    Thuê Tự Lái
                   </button>
                 </div>
 
@@ -642,7 +629,7 @@ export const PublicCustomerBookingPortal: React.FC<PublicCustomerBookingPortalPr
                 {/* Chọn lộ trình Cao tốc vs Quốc lộ */}
                 <div className="bg-blue-50/70 p-3.5 rounded-xl border border-blue-200 space-y-2.5">
                   <label className="block font-bold text-blue-950">
-                    🛣️ Tùy chọn lộ trình di chuyển (Cao tốc hay Quốc lộ):
+                    Tùy chọn lộ trình di chuyển (Cao tốc hay Quốc lộ):
                   </label>
                   <div className="grid grid-cols-2 gap-2">
                     <button
@@ -654,7 +641,7 @@ export const PublicCustomerBookingPortal: React.FC<PublicCustomerBookingPortalPr
                           : 'bg-white text-slate-700 border-slate-300'
                       }`}
                     >
-                      🛣️ Đi Đường Cao Tốc (Nhanh)
+                      Đi Đường Cao Tốc (Nhanh)
                     </button>
                     <button
                       type="button"
@@ -665,12 +652,12 @@ export const PublicCustomerBookingPortal: React.FC<PublicCustomerBookingPortalPr
                           : 'bg-white text-slate-700 border-slate-300'
                       }`}
                     >
-                      🛤️ Đi Đường Quốc Lộ
+                      Đi Đường Quốc Lộ
                     </button>
                   </div>
 
                   <div>
-                    <label className="block text-[11px] text-slate-600 mb-1">
+                    <label className="block text-xs text-slate-600 mb-1">
                       Tuyến hành trình phổ biến:
                     </label>
                     <select
@@ -710,7 +697,7 @@ export const PublicCustomerBookingPortal: React.FC<PublicCustomerBookingPortalPr
                   </button>
                   <button
                     type="submit"
-                    className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold shadow-lg shadow-blue-600/25 transition"
+                    className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold transition"
                   >
                     Xác Nhận Đặt Lịch Xe
                   </button>
@@ -723,14 +710,14 @@ export const PublicCustomerBookingPortal: React.FC<PublicCustomerBookingPortalPr
 
       {/* Modal Tra cứu lịch đặt xe của Khách hàng */}
       {showLookupModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/75 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-md p-4">
           <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden">
-            <div className="bg-slate-900 text-white px-5 py-3.5 flex items-center justify-between">
-              <h4 className="text-sm font-bold">Tra Cứu Trạng Thái Lịch Đặt Xe</h4>
+            <div className="bg-white text-slate-900 border-b border-slate-200 px-5 py-4 flex items-center justify-between">
+              <h4 className="text-sm font-bold">Tra cứu trạng thái lịch đặt xe</h4>
               <button
                 type="button"
                 onClick={() => setShowLookupModal(false)}
-                className="text-slate-400 hover:text-white"
+                className="text-slate-400 hover:text-slate-900"
               >
                 ✕
               </button>
@@ -768,14 +755,14 @@ export const PublicCustomerBookingPortal: React.FC<PublicCustomerBookingPortalPr
                             <span className="px-2 py-0.5 rounded bg-slate-900 text-white font-bold">
                               #{tr.tripCode}
                             </span>
-                            <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[11px]">
+                            <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-xs">
                               {tr.status === 'PENDING_CONFIRM'
-                                ? '⏳ Đang điều phối tài xế'
-                                : '✅ Đã xác nhận lịch'}
+                                ? 'Đang điều phối tài xế'
+                                : 'Đã xác nhận lịch'}
                             </span>
                           </div>
                           <div className="font-bold text-slate-900">
-                            {tr.pickupLocation} ➔ {tr.dropoffLocation} ({tr.tripDate} lúc{' '}
+                            {tr.pickupLocation} → {tr.dropoffLocation} ({tr.tripDate} lúc{' '}
                             {tr.departureTime})
                           </div>
                           <div>

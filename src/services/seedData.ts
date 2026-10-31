@@ -56,6 +56,7 @@ export const initialFleetDatabase: FleetDatabase = {
       createdAt: '2026-06-01',
     },
   ],
+  journeyRoutes: [],
   highwayPresets: [
     {
       id: 'HW-01',

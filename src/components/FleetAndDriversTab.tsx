@@ -18,6 +18,7 @@ import {
   Vehicle,
   VehicleType,
 } from '../types/fleet';
+import { normalizePlate, ownerPlates } from '../utils/party';
 import { calculateTripFinancials, formatVND } from '../utils/calculations';
 
 const FUEL_BADGE_CLASS: Record<FuelType, string> = {
@@ -98,6 +99,8 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
   const [dBankAccount, setDBankAccount] = useState('');
   const [dTelegram, setDTelegram] = useState('');
   const [dZalo, setDZalo] = useState('');
+  const [dPartyType, setDPartyType] = useState<'EXTERNAL_DRIVER' | 'VEHICLE_OWNER'>('EXTERNAL_DRIVER');
+  const [dOwnedPlates, setDOwnedPlates] = useState<string[]>(['']);
 
   const brands = Array.from(new Set(vehicles.map((v) => v.brand)));
 
@@ -139,6 +142,8 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
     setDBankAccount(drv.bankAccount);
     setDTelegram(drv.telegramUsername);
     setDZalo(drv.zaloPhone);
+    setDPartyType(drv.partyType || 'EXTERNAL_DRIVER');
+    setDOwnedPlates(ownerPlates(drv).length ? ownerPlates(drv) : ['']);
     setShowAddDriver(true);
   };
 
@@ -210,6 +215,12 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
         bankAccount: dBankAccount.trim() || editingDriver.bankAccount,
         telegramUsername: formattedTg,
         zaloPhone: dZalo.trim() || dPhone.trim(),
+        partyType: dPartyType,
+        ownedPlateNumbers:
+          dPartyType === 'VEHICLE_OWNER'
+            ? dOwnedPlates.map((p) => p.trim().toUpperCase()).filter(Boolean)
+            : undefined,
+        ownedPlateNumber: undefined,
       });
     } else {
       onAddDriver({
@@ -227,6 +238,12 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
         bankAccount: dBankAccount.trim() || '007100123456',
         telegramUsername: formattedTg,
         zaloPhone: dZalo.trim() || dPhone.trim() || '0909123456',
+        partyType: dPartyType,
+        ownedPlateNumbers:
+          dPartyType === 'VEHICLE_OWNER'
+            ? dOwnedPlates.map((p) => p.trim().toUpperCase()).filter(Boolean)
+            : undefined,
+        ownedPlateNumber: undefined,
         status: 'ACTIVE',
         baseCommissionPercent: 10,
         documentsVerified: {
@@ -242,6 +259,8 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
     setEditingDriver(null);
     setDName('');
     setDPhone('');
+    setDPartyType('EXTERNAL_DRIVER');
+    setDOwnedPlates(['']);
   };
 
   return (
@@ -254,24 +273,24 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
             onClick={() => setSubTab('VEHICLES')}
             className={`inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition ${
               subTab === 'VEHICLES'
-                ? 'bg-blue-600 text-white shadow-sm'
+                ? 'bg-white text-slate-900 shadow-sm'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             <Car className="w-4 h-4 shrink-0" />
-            <span>Đội Xe ({vehicles.length})</span>
+            <span>Đội xe ({vehicles.length})</span>
           </button>
           <button
             type="button"
             onClick={() => setSubTab('DRIVERS')}
             className={`inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition ${
               subTab === 'DRIVERS'
-                ? 'bg-blue-600 text-white shadow-sm'
+                ? 'bg-white text-slate-900 shadow-sm'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             <Users className="w-4 h-4 shrink-0" />
-            <span>Hồ Sơ Tài Xế ({drivers.length})</span>
+            <span>Hồ sơ tài xế ({drivers.length})</span>
           </button>
         </div>
 
@@ -296,12 +315,14 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
               setEditingDriver(null);
               setDName('');
               setDPhone('');
+              setDPartyType('EXTERNAL_DRIVER');
+              setDOwnedPlates(['']);
               setShowAddDriver(true);
             }}
             className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-sm transition"
           >
             <Plus className="w-4 h-4" />
-            <span>Thêm Hồ Sơ Tài Xế / Người Lái</span>
+            <span>Thêm hồ sơ tài xế / người lái</span>
           </button>
         )}
       </div>
@@ -368,7 +389,7 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
             }
           >
             {filteredVehicles.map((veh) => {
-              const vehTrips = trips.filter((t) => t.vehicleId === veh.id);
+              const vehTrips = trips.filter((t) => t.vehicleId === veh.id && t.status === 'COMPLETED');
               const totalNet = vehTrips.reduce(
                 (acc, t) => acc + calculateTripFinancials(t).netRemainingToAccount,
                 0
@@ -382,11 +403,11 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
                   <div>
                     <div className="flex items-center justify-between gap-2 mb-2.5">
                       <div className="flex items-center gap-1.5">
-                        <span className="px-2.5 py-1 rounded-lg bg-blue-600 text-white text-xs font-extrabold">
+                        <span className="px-2.5 py-0.5 rounded-full bg-slate-900 text-white text-xs font-medium">
                           {veh.seatCategory}
                         </span>
                         <span
-                          className={`px-2 py-0.5 rounded-lg text-[11px] font-bold ${
+                          className={`px-2 py-0.5 rounded-lg text-xs font-bold ${
                             FUEL_BADGE_CLASS[veh.fuelType || 'GASOLINE']
                           }`}
                         >
@@ -395,7 +416,7 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
                       </div>
                       <div className="flex items-center gap-1.5">
                         <span
-                          className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                          className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
                             veh.status === 'AVAILABLE'
                               ? 'bg-emerald-100 text-emerald-800'
                               : veh.status === 'ON_TRIP'
@@ -436,14 +457,14 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
 
                     <div className="flex items-baseline justify-between gap-2">
                       <div>
-                        <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                        <div className="text-xs font-bold r text-slate-400">
                           {veh.brand} • {veh.vehicleType}
                         </div>
                         <h3 className="text-sm sm:text-base font-extrabold text-slate-900">
                           {veh.model}
                         </h3>
                       </div>
-                      <span className="px-2 py-1 rounded-md bg-slate-900 text-amber-300 font-mono text-xs font-bold shrink-0">
+                      <span className="px-2 py-0.5 rounded-md border border-slate-300 bg-white text-slate-800 font-mono text-xs font-medium shrink-0">
                         {veh.plateNumber}
                       </span>
                     </div>
@@ -476,7 +497,7 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
 
                   <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs">
                     <span className="text-slate-500">
-                      Đã chạy: <strong className="text-slate-800">{vehTrips.length} chuyến</strong>
+                      Đã hoàn thành: <strong className="text-slate-800">{vehTrips.length} chuyến</strong>
                     </span>
                     <span className="font-bold text-blue-700">
                       Thực thu: {formatVND(totalNet)}
@@ -495,7 +516,7 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
           }
         >
           {drivers.map((drv) => {
-            const drvTrips = trips.filter((t) => t.driverId === drv.id);
+            const drvTrips = trips.filter((t) => t.driverId === drv.id && t.status === 'COMPLETED');
             const totalNet = drvTrips.reduce(
               (acc, t) => acc + calculateTripFinancials(t).netRemainingToAccount,
               0
@@ -516,7 +537,7 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-3">
-                    <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-800 text-white font-extrabold text-sm flex items-center justify-center shrink-0">
+                    <div className="w-11 h-11 rounded-2xl bg-blue-600 text-white font-extrabold text-sm flex items-center justify-center shrink-0">
                       {drv.fullName
                         .split(' ')
                         .slice(-2)
@@ -528,8 +549,19 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
                         <h3 className="text-sm sm:text-base font-extrabold text-slate-900">
                           {drv.fullName}
                         </h3>
-                        <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 text-[10px] font-bold">
+                        <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 text-xs font-bold">
                           {drv.code}
+                        </span>
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                            drv.partyType === 'VEHICLE_OWNER'
+                              ? 'bg-emerald-50 text-emerald-700'
+                              : 'bg-slate-100 text-slate-600'
+                          }`}
+                        >
+                          {drv.partyType === 'VEHICLE_OWNER'
+                            ? `Chủ xe${ownerPlates(drv).length ? ` · ${ownerPlates(drv).join(', ')}` : ''}`
+                            : 'Tài xế ngoài'}
                         </span>
                       </div>
                       <div className="text-xs text-slate-500 mt-0.5">
@@ -543,13 +575,13 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
 
                   <div className="flex items-center gap-1.5 shrink-0">
                     <span
-                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      className={`px-2 py-0.5 rounded-full text-xs font-bold ${
                         drv.status === 'ON_TRIP'
                           ? 'bg-blue-100 text-blue-800'
                           : 'bg-emerald-100 text-emerald-800'
                       }`}
                     >
-                      {drv.status === 'ON_TRIP' ? '🚗 Đang chạy' : '✅ Sẵn sàng'}
+                      {drv.status === 'ON_TRIP' ? 'Đang chạy' : 'Sẵn sàng'}
                     </span>
                     <button
                       type="button"
@@ -575,22 +607,22 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
                 {/* Chi tiết Hồ sơ Người lái */}
                 <div className="grid grid-cols-2 gap-2 bg-slate-50 p-3 rounded-xl border border-slate-200/80 text-xs">
                   <div>
-                    <div className="text-slate-400 text-[10px]">Số CCCD</div>
+                    <div className="text-slate-400 text-xs">Số CCCD</div>
                     <div className="font-bold text-slate-800">{drv.cccd}</div>
                   </div>
                   <div>
-                    <div className="text-slate-400 text-[10px]">Số GPLX</div>
+                    <div className="text-slate-400 text-xs">Số GPLX</div>
                     <div className="font-bold text-slate-800">{drv.licenseNumber}</div>
                   </div>
                   <div>
-                    <div className="text-slate-400 text-[10px]">Tag Telegram</div>
+                    <div className="text-slate-400 text-xs">Tag Telegram</div>
                     <div className="font-bold text-blue-600 truncate">{drv.telegramUsername}</div>
                   </div>
                   <div>
-                    <div className="text-slate-400 text-[10px]">Zalo / SĐT</div>
+                    <div className="text-slate-400 text-xs">Zalo / SĐT</div>
                     <div className="font-bold text-slate-800">{drv.zaloPhone}</div>
                   </div>
-                  <div className="col-span-2 pt-1 border-t border-slate-200/80 flex items-center justify-between text-[11px]">
+                  <div className="col-span-2 pt-1 border-t border-slate-200/80 flex items-center justify-between text-xs">
                     <span className="text-slate-500">TK Nhận tiền:</span>
                     <strong className="text-slate-900">
                       {drv.bankName} — {drv.bankAccount}
@@ -600,11 +632,11 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
 
                 {/* Trạng thái Hồ sơ giấy tờ */}
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-semibold">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-semibold">
                     <ShieldCheck className="w-3 h-3 text-emerald-600" />
                     CCCD: Đã lưu
                   </span>
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-semibold">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-semibold">
                     <FileCheck2 className="w-3 h-3 text-emerald-600" />
                     GPLX {drv.licenseClass} (Hạn: {drv.licenseExpiry})
                   </span>
@@ -613,13 +645,13 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
                 {/* Thống kê nhanh tài chính & rủi ro của tài xế */}
                 <div className="pt-2.5 border-t border-slate-100 grid grid-cols-2 gap-2 text-xs">
                   <div className="bg-slate-50 rounded-lg p-2 flex justify-between items-center">
-                    <span className="text-[10px] text-slate-500">Đậu xe + Phạt:</span>
+                    <span className="text-xs text-slate-500">Đậu xe + Phạt:</span>
                     <strong className="text-rose-600">
                       -{formatVND(totalParking + totalFine)}
                     </strong>
                   </div>
                   <div className="bg-emerald-50/70 rounded-lg p-2 flex justify-between items-center">
-                    <span className="text-[10px] text-emerald-800 font-semibold">Thực còn:</span>
+                    <span className="text-xs text-emerald-800 font-semibold">Thực còn:</span>
                     <strong className="text-emerald-700">{formatVND(totalNet)}</strong>
                   </div>
                 </div>
@@ -631,9 +663,9 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
 
       {/* Modal Thêm / Sửa Xe */}
       {showAddVehicle && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-md p-4">
           <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden">
-            <div className="bg-slate-900 text-white px-5 py-3.5 flex items-center justify-between">
+            <div className="bg-white text-slate-900 border-b border-slate-200 px-5 py-4 flex items-center justify-between">
               <h4 className="text-sm font-bold">
                 {editingVehicle
                   ? `Cập Nhật Xe ${editingVehicle.plateNumber}`
@@ -645,7 +677,7 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
                   setShowAddVehicle(false);
                   setEditingVehicle(null);
                 }}
-                className="text-slate-400 hover:text-white"
+                className="text-slate-400 hover:text-slate-900"
               >
                 ✕
               </button>
@@ -698,7 +730,7 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
                     value={vPlate}
                     onChange={(e) => setVPlate(e.target.value)}
                     placeholder="51K-888.99"
-                    className="w-full rounded-lg border border-slate-300 px-2.5 py-2 text-xs font-bold uppercase"
+                    className="w-full rounded-lg border border-slate-300 px-2.5 py-2 text-xs font-bold "
                     required
                   />
                 </div>
@@ -727,15 +759,37 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
                       onClick={() => setVFuelType(ft)}
                       className={`py-2 rounded-lg text-xs font-bold transition ${
                         vFuelType === ft
-                          ? ft === 'ELECTRIC'
-                            ? 'bg-teal-600 text-white'
-                            : ft === 'GASOLINE'
-                            ? 'bg-orange-500 text-white'
-                            : 'bg-slate-700 text-white'
+                          ? 'bg-blue-600 text-white'
                           : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                       }`}
                     >
                       {FUEL_TYPE_LABELS[ft]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Hình thức cho thuê *</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(
+                    [
+                      ['WITH_DRIVER', 'Có tài xế'],
+                      ['SELF_DRIVE', 'Tự lái'],
+                      ['BOTH', 'Cả hai'],
+                    ] as [ServiceMode, string][]
+                  ).map(([mode, label]) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => setVMode(mode)}
+                      className={`py-2 rounded-lg text-xs font-bold transition ${
+                        vMode === mode
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      {label}
                     </button>
                   ))}
                 </div>
@@ -795,9 +849,9 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
 
       {/* Modal Thêm / Sửa Hồ Sơ Tài Xế */}
       {showAddDriver && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-md p-4">
           <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden">
-            <div className="bg-slate-900 text-white px-5 py-3.5 flex items-center justify-between">
+            <div className="bg-white text-slate-900 border-b border-slate-200 px-5 py-4 flex items-center justify-between">
               <h4 className="text-sm font-bold">
                 {editingDriver
                   ? `Cập Nhật Hồ Sơ Tài Xế: ${editingDriver.fullName}`
@@ -809,7 +863,7 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
                   setShowAddDriver(false);
                   setEditingDriver(null);
                 }}
-                className="text-slate-400 hover:text-white"
+                className="text-slate-400 hover:text-slate-900"
               >
                 ✕
               </button>
@@ -900,6 +954,80 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
                     className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-mono"
                   />
                 </div>
+              </div>
+
+              <div className="space-y-2 rounded-xl border border-slate-200 p-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Loại hồ sơ</label>
+                  <select
+                    value={dPartyType}
+                    onChange={(e) =>
+                      setDPartyType(e.target.value as 'EXTERNAL_DRIVER' | 'VEHICLE_OWNER')
+                    }
+                    className="w-full rounded-lg border border-slate-300 px-2 py-2 text-xs font-semibold"
+                  >
+                    <option value="EXTERNAL_DRIVER">Tài xế ngoài</option>
+                    <option value="VEHICLE_OWNER">Chủ xe</option>
+                  </select>
+                  <p className="text-slate-500 mt-1">
+                    Người chạy giúp xe của người khác thì chọn Tài xế ngoài. Chủ xe chỉ gắn với xe của mình.
+                  </p>
+                </div>
+                {dPartyType === 'VEHICLE_OWNER' && (
+                  <div className="space-y-2">
+                    <label className="block font-bold text-slate-700">Biển số xe của chủ xe *</label>
+                    {dOwnedPlates.map((plate, idx) => {
+                      const match = plate.trim()
+                        ? vehicles.find((v) => normalizePlate(v.plateNumber) === normalizePlate(plate))
+                        : undefined;
+                      return (
+                        <div key={idx}>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              value={plate}
+                              onChange={(e) =>
+                                setDOwnedPlates((prev) =>
+                                  prev.map((p, i) => (i === idx ? e.target.value : p))
+                                )
+                              }
+                              placeholder="60H-465.04"
+                              className="flex-1 rounded-lg border border-slate-300 px-2.5 py-2 text-xs font-semibold"
+                              required={idx === 0}
+                            />
+                            {dOwnedPlates.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => setDOwnedPlates((prev) => prev.filter((_, i) => i !== idx))}
+                                className="w-8 h-8 rounded-full text-slate-400 hover:bg-slate-100 hover:text-rose-600"
+                                title="Bỏ biển số này"
+                              >
+                                ✕
+                              </button>
+                            )}
+                          </div>
+                          {plate.trim() &&
+                            (match ? (
+                              <p className="text-emerald-700 mt-1">
+                                Khớp danh mục xe: {match.brand} {match.model} ({match.seatCategory}).
+                              </p>
+                            ) : (
+                              <p className="text-amber-600 mt-1">
+                                Biển số này chưa có trong danh mục xe. Thêm xe vào Đội xe để hệ thống đối chiếu được.
+                              </p>
+                            ))}
+                        </div>
+                      );
+                    })}
+                    <button
+                      type="button"
+                      onClick={() => setDOwnedPlates((prev) => [...prev, ''])}
+                      className="h-8 px-3 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium"
+                    >
+                      + Thêm biển số
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3 bg-blue-50 p-3 rounded-xl border border-blue-200">

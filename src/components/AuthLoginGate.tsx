@@ -70,13 +70,13 @@ export const AuthLoginGate: React.FC<AuthLoginGateProps> = ({
       if (matched.status === 'PENDING_APPROVAL') {
         setLoading(false);
         setErrorMsg(
-          '⏳ Tài khoản này đang ở trạng thái CHỜ ADMIN XÁC NHẬN. Vui lòng liên hệ Chủ hệ thống (Super Admin) bấm phê duyệt quyền đăng nhập!'
+          'Tài khoản này đang ở trạng thái CHỜ ADMIN XÁC NHẬN. Vui lòng liên hệ Chủ hệ thống (Super Admin) bấm phê duyệt quyền đăng nhập!'
         );
         return;
       }
       if (matched.status === 'LOCKED') {
         setLoading(false);
-        setErrorMsg('🔒 Tài khoản này đã bị khóa quyền truy cập bởi Quản trị viên.');
+        setErrorMsg('Tài khoản này đã bị khóa quyền truy cập bởi Quản trị viên.');
         return;
       }
 
@@ -118,7 +118,7 @@ export const AuthLoginGate: React.FC<AuthLoginGateProps> = ({
 
     setLoading(false);
     setErrorMsg(
-      '❌ Tên đăng nhập hoặc mật khẩu không đúng. (Mặc định lần đầu: Tài khoản "admin" / Mật khẩu "LiuCar@2026" hoặc "123456")'
+      'Tên đăng nhập hoặc mật khẩu không đúng. (Mặc định lần đầu: Tài khoản "admin" / Mật khẩu "LiuCar@2026" hoặc "123456")'
     );
   };
 
@@ -133,13 +133,13 @@ export const AuthLoginGate: React.FC<AuthLoginGateProps> = ({
     );
 
     if (!drv) {
-      setErrorMsg('❌ Không tìm thấy hồ sơ tài xế với Số điện thoại / Mã tài xế này.');
+      setErrorMsg('Không tìm thấy hồ sơ tài xế với Số điện thoại / Mã tài xế này.');
       return;
     }
 
     if (driverPin.trim() !== '1234' && driverPin.trim() !== drv.phone.slice(-4)) {
       setErrorMsg(
-        '❌ Mã PIN tài xế không đúng (Mã PIN mặc định: 1234 hoặc 4 số cuối điện thoại).'
+        'Mã PIN tài xế không đúng (Mã PIN mặc định: 1234 hoặc 4 số cuối điện thoại).'
       );
       return;
     }
@@ -181,7 +181,7 @@ export const AuthLoginGate: React.FC<AuthLoginGateProps> = ({
     });
 
     setSuccessMsg(
-      '✅ Đã gửi yêu cầu cấp quyền! Tài khoản của bạn đang ở trạng thái "Chờ Admin Xác Nhận". Sau khi Admin bấm duyệt, bạn có thể đăng nhập.'
+      'Đã gửi yêu cầu cấp quyền! Tài khoản của bạn đang ở trạng thái "Chờ Admin Xác Nhận". Sau khi Admin bấm duyệt, bạn có thể đăng nhập.'
     );
     setReqFullName('');
     setReqUsername('');
@@ -190,18 +190,18 @@ export const AuthLoginGate: React.FC<AuthLoginGateProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
       <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden">
         {/* Top Banner */}
-        <div className="bg-slate-900 text-white p-6 text-center space-y-2 border-b border-slate-800">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 mx-auto flex items-center justify-center shadow-lg shadow-blue-600/30">
+        <div className="bg-white text-slate-900 p-6 text-center space-y-2 border-b border-slate-200">
+          <div className="w-14 h-14 rounded-2xl bg-blue-600 mx-auto flex items-center justify-center">
             <Car className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-lg font-extrabold tracking-tight">LIU-CAR SmartFleet Pro</h1>
-          <p className="text-xs text-blue-200">{companyName}</p>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-400/30 text-[11px] font-bold text-emerald-300">
+          <h1 className="text-lg font-extrabold tracking-tight">SmartFleet Pro</h1>
+          <p className="text-sm text-slate-500">{companyName}</p>
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-xs font-medium text-emerald-700">
             <ShieldCheck className="w-3.5 h-3.5" />
-            <span>Cổng Xác Thực & Phân Quyền Quản Trị</span>
+            <span>Cổng xác thực & phân quyền quản trị</span>
           </div>
         </div>
 
@@ -237,7 +237,7 @@ export const AuthLoginGate: React.FC<AuthLoginGateProps> = ({
             }`}
           >
             <UserCheck className="w-3.5 h-3.5 shrink-0" />
-            <span>Tài Xế</span>
+            <span>Tài xế</span>
           </button>
           <button
             type="button"
@@ -253,7 +253,7 @@ export const AuthLoginGate: React.FC<AuthLoginGateProps> = ({
             }`}
           >
             <UserPlus className="w-3.5 h-3.5 shrink-0" />
-            <span>Xin Cấp Quyền</span>
+            <span>Xin cấp quyền</span>
           </button>
         </div>
 
@@ -306,16 +306,16 @@ export const AuthLoginGate: React.FC<AuthLoginGateProps> = ({
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-extrabold shadow-lg shadow-blue-600/25 transition flex items-center justify-center gap-2"
+                className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-extrabold transition flex items-center justify-center gap-2"
               >
                 <KeyRound className="w-4 h-4" />
                 <span>{loading ? 'Đang xác thực...' : 'Đăng Nhập Quản Trị Hệ Thống'}</span>
               </button>
 
               {/* Hộp gợi ý nhanh lần đầu */}
-              <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-200 text-[11px] text-slate-600 space-y-1.5">
+              <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-200 text-xs text-slate-600 space-y-1.5">
                 <div className="font-bold text-slate-800 flex items-center justify-between">
-                  <span>🔑 Tài khoản Admin mặc định khởi tạo:</span>
+                  <span>Tài khoản Admin mặc định khởi tạo:</span>
                   <button
                     type="button"
                     onClick={() => {
@@ -332,8 +332,8 @@ export const AuthLoginGate: React.FC<AuthLoginGateProps> = ({
                   <code className="font-bold text-slate-900">LiuCar@2026</code> (hoặc{' '}
                   <code>123456</code>)
                 </div>
-                <div className="text-[10px] text-slate-500">
-                  * Sau khi đăng nhập, bạn bấm nút <strong>&ldquo;🔐 Bảo mật Admin&rdquo;</strong> trên góc trên để đổi mật khẩu riêng và phê duyệt các nhân viên điều hành đang chờ xác nhận.
+                <div className="text-xs text-slate-500">
+                  * Sau khi đăng nhập, bạn bấm nút <strong>&ldquo;Bảo mật Admin&rdquo;</strong> trên góc trên để đổi mật khẩu riêng và phê duyệt các nhân viên điều hành đang chờ xác nhận.
                 </div>
               </div>
             </form>
@@ -375,13 +375,13 @@ export const AuthLoginGate: React.FC<AuthLoginGateProps> = ({
 
               <button
                 type="submit"
-                className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-extrabold shadow-lg shadow-emerald-600/25 transition"
+                className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-extrabold transition"
               >
                 Đăng Nhập Cổng Tài Xế
               </button>
 
-              <div className="bg-emerald-50/70 rounded-xl p-3 border border-emerald-200 text-[11px] text-emerald-900">
-                👨‍✈️ <strong>Phân quyền Tài xế:</strong> Tài xế chỉ xem được lịch chạy của cá nhân mình, bấm xác nhận nhận chuyến và báo chi phí đậu xe / phạt giao thông (không xem được toàn bộ doanh thu công ty).
+              <div className="bg-emerald-50/70 rounded-xl p-3 border border-emerald-200 text-xs text-emerald-900">
+                <strong>Phân quyền Tài xế:</strong> Tài xế chỉ xem được lịch chạy của cá nhân mình, bấm xác nhận nhận chuyến và báo chi phí đậu xe / phạt giao thông (không xem được toàn bộ doanh thu công ty).
               </div>
             </form>
           )}
@@ -390,7 +390,7 @@ export const AuthLoginGate: React.FC<AuthLoginGateProps> = ({
           {mode === 'REGISTER_REQUEST' && (
             <form onSubmit={handleRegisterSubmit} className="space-y-3">
               <div className="text-xs text-slate-600 bg-indigo-50 p-3 rounded-xl border border-indigo-200">
-                📝 Nhân viên Điều hành hoặc Kế toán đăng ký tài khoản tại đây. Tài khoản tạo mới sẽ ở trạng thái <strong>&ldquo;Chờ Admin Xác Nhận&rdquo;</strong> trước khi được phép đăng nhập.
+                Nhân viên Điều hành hoặc Kế toán đăng ký tài khoản tại đây. Tài khoản tạo mới sẽ ở trạng thái <strong>&Ldquo;chờ Admin xác nhận&rdquo;</strong> trước khi được phép đăng nhập.
               </div>
 
               <div>
@@ -459,7 +459,7 @@ export const AuthLoginGate: React.FC<AuthLoginGateProps> = ({
 
               <button
                 type="submit"
-                className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-extrabold shadow-lg shadow-indigo-600/25 transition"
+                className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-extrabold transition"
               >
                 Gửi Yêu Cầu Chờ Admin Duyệt
               </button>

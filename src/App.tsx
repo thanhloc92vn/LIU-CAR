@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  BatteryCharging,
   Bot,
   Building2,
   Calendar,
@@ -8,20 +7,16 @@ import {
   ChevronRight,
   Edit3,
   Globe,
-  Laptop,
   LogOut,
   MapPin,
   Plus,
+  Route,
   Printer,
   ShieldCheck,
-  Signal,
-  Smartphone,
-  Sparkles,
   Trash2,
   UserCheck,
   Users,
   Wallet,
-  Wifi,
 } from 'lucide-react';
 import {
   AdminAccount,
@@ -30,6 +25,7 @@ import {
   Driver,
   FleetDatabase,
   HighwayPreset,
+  JourneyRoute,
   SeatCategory,
   TenantConfig,
   Trip,
@@ -43,17 +39,29 @@ import {
 } from './services/supabaseClient';
 import { calculateTripFinancials, formatVND } from './utils/calculations';
 import { buildBotDispatchMessage } from './utils/aiBotEngine';
+import { ownsVehicle } from './utils/party';
 import { BookingModal } from './components/BookingModal';
 import { FinanceSettlementTab } from './components/FinanceSettlementTab';
 import { FleetAndDriversTab } from './components/FleetAndDriversTab';
+import { JourneyRoutesTab } from './components/JourneyRoutesTab';
 import { AIBotZaloTelegramTab } from './components/AIBotZaloTelegramTab';
 import { MultiTenantSaaSModal } from './components/MultiTenantSaaSModal';
 import { AuthLoginGate } from './components/AuthLoginGate';
 import { AdminSecurityModal } from './components/AdminSecurityModal';
+import { AddExpenseModal, EXPENSE_LABELS, ExpenseKind } from './components/AddExpenseModal';
+import { DriverEarningsTab } from './components/DriverEarningsTab';
 import { PrintableVoucherModal } from './components/PrintableVoucherModal';
 import { PublicCustomerBookingPortal } from './components/PublicCustomerBookingPortal';
 
-type ActiveTab = 'BOOKINGS' | 'FINANCE' | 'FLEET_DRIVERS' | 'AI_BOT';
+type ActiveTab = 'BOOKINGS' | 'JOURNEYS' | 'FINANCE' | 'FLEET_DRIVERS' | 'AI_BOT';
+
+const NAV_TABS: { id: ActiveTab; label: string; short: string; icon: React.ElementType }[] = [
+  { id: 'BOOKINGS', label: 'Lịch đặt xe', short: 'Lịch xe', icon: Calendar },
+  { id: 'JOURNEYS', label: 'Hành trình chuyến', short: 'Hành trình', icon: Route },
+  { id: 'FINANCE', label: 'Doanh thu & đối soát', short: 'Đối soát', icon: Wallet },
+  { id: 'FLEET_DRIVERS', label: 'Đội xe & tài xế', short: 'Đội xe', icon: Users },
+  { id: 'AI_BOT', label: 'Bot Zalo / Telegram', short: 'Bot', icon: Bot },
+];
 
 function checkIsAdminUrl(): boolean {
   if (typeof window === 'undefined') return false;
@@ -86,7 +94,6 @@ export function App() {
   });
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('BOOKINGS');
-  const [mobilePreviewMode, setMobilePreviewMode] = useState<boolean>(false);
   const [isSmallScreen, setIsSmallScreen] = useState<boolean>(
     typeof window !== 'undefined' ? window.innerWidth < 768 : false
   );
@@ -102,6 +109,7 @@ export function App() {
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
   const [voucherTrip, setVoucherTrip] = useState<Trip | null>(null);
+  const [expenseTrip, setExpenseTrip] = useState<Trip | null>(null);
   const [isSaaSModalOpen, setIsSaaSModalOpen] = useState(false);
   const [isSecurityModalOpen, setIsSecurityModalOpen] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
@@ -126,7 +134,14 @@ export function App() {
     }
   };
 
-  const isMobileLayout = mobilePreviewMode || isSmallScreen;
+  const isMobileLayout = isSmallScreen;
+  const isAdmin = authSession?.role === 'ADMIN';
+  // Tài xế / chủ xe chỉ dùng Lịch đặt xe và Doanh thu của mình
+  const visibleTabs = isAdmin
+    ? NAV_TABS
+    : NAV_TABS.filter((t) => t.id === 'BOOKINGS' || t.id === 'FINANCE').map((t) =>
+        t.id === 'FINANCE' ? { ...t, label: 'Tiền công', short: 'Tiền công' } : t
+      );
 
   const showToast = (msg: string) => {
     setToastMsg(msg);
@@ -262,14 +277,16 @@ export function App() {
     // If logged in as a DRIVER, restrict to only their assigned or tagged trips
     if (authSession?.role === 'DRIVER' && authSession.driverId) {
       const drvId = authSession.driverId;
-      return all.filter(
-        (t) =>
-          t.driverId === drvId ||
-          t.taggedDriverIds?.includes(drvId)
-      );
+      const me = db.drivers.find((d) => d.id === drvId);
+      return all.filter((t) => {
+        if (t.driverId === drvId || t.taggedDriverIds?.includes(drvId)) return true;
+        // Chủ xe thấy mọi chuyến dùng xe của mình (kể cả chuyến tự lái)
+        const veh = db.vehicles.find((v) => v.id === t.vehicleId);
+        return ownsVehicle(me, veh);
+      });
     }
     return all;
-  }, [db.trips, activeTenant.id, authSession]);
+  }, [db.trips, db.drivers, db.vehicles, activeTenant.id, authSession]);
 
   const tenantBotLogs = useMemo(
     () => db.botLogs.filter((l) => l.tenantId === activeTenant.id),
@@ -287,7 +304,8 @@ export function App() {
     let netRemainingToAccount = 0;
 
     tenantTrips.forEach((t) => {
-      if (t.status === 'CANCELLED') return;
+      // Doanh thu chỉ ghi nhận khi chuyến đã hoàn thành
+      if (t.status !== 'COMPLETED') return;
       const b = calculateTripFinancials(t);
       grossRevenue += b.grossRevenue;
       totalAutoDeducted += b.totalAutoDeducted;
@@ -328,7 +346,7 @@ export function App() {
   const handleLoginSuccess = (session: AuthUserSession) => {
     setAuthSession(session);
     sessionStorage.setItem('LIUCAR_AUTH_SESSION', JSON.stringify(session));
-    showToast(`👋 Chào mừng ${session.fullName} đã đăng nhập hệ thống!`);
+    showToast(`Chào mừng ${session.fullName} đã đăng nhập hệ thống!`);
   };
 
   const handleLogout = () => {
@@ -360,7 +378,7 @@ export function App() {
           t.id === existingId ? { ...t, ...tripData } : t
         ),
       }));
-      showToast(`✅ Đã cập nhật chuyến #${tripData.tripCode} và tính lại số thực tế còn lại vào TK!`);
+      showToast(`Đã cập nhật chuyến #${tripData.tripCode} và tính lại số thực tế còn lại vào TK!`);
     } else {
       const newId = `TRIP-${Date.now()}`;
       const newTrip: Trip = {
@@ -398,7 +416,7 @@ export function App() {
         botLogs: [newLog, ...prev.botLogs],
       }));
       showToast(
-        `🚀 Đã tạo lịch #${newTrip.tripCode} & bắn thông báo @Tag tài xế qua Zalo/Telegram!`
+        `Đã tạo lịch #${newTrip.tripCode} & bắn thông báo @Tag tài xế qua Zalo/Telegram!`
       );
     }
     setEditingTrip(null);
@@ -419,10 +437,66 @@ export function App() {
       ...prev,
       trips: prev.trips.map((t) => (t.id === tripId ? { ...t, ...updates } : t)),
     }));
-    showToast('✅ Đã cập nhật chi phí phạt / đậu xe / nhập tay và cấn trừ vào số thực tế còn lại!');
+    showToast('Đã cập nhật chi phí phạt / đậu xe / nhập tay và cấn trừ vào số thực tế còn lại!');
   };
 
-  const handleDriverConfirmTrip = (tripId: string, channel: 'TELEGRAM' | 'ZALO') => {
+  // Tài xế / chủ xe chỉ cộng thêm chi phí phát sinh, không ghi đè khoản đã có
+  const handleDriverAddExpense = (
+    tripId: string,
+    kind: ExpenseKind,
+    amount: number,
+    note: string
+  ) => {
+    const trip = db.trips.find((t) => t.id === tripId);
+    if (!trip) return;
+    const who = authSession?.fullName || '';
+    const label = `${note || EXPENSE_LABELS[kind]} (${who}, ${new Date().toLocaleDateString('vi-VN')})`;
+    const join = (prev: string | undefined) => (prev ? `${prev}; ${label}` : label);
+    setDb((prev) => ({
+      ...prev,
+      trips: prev.trips.map((t) => {
+        if (t.id !== tripId) return t;
+        if (kind === 'PARKING')
+          return { ...t, parkingFee: (Number(t.parkingFee) || 0) + amount, parkingNote: join(t.parkingNote) };
+        if (kind === 'TIRE')
+          return { ...t, otherRiskFee: (Number(t.otherRiskFee) || 0) + amount, otherRiskNote: join(t.otherRiskNote) };
+        if (kind === 'FINE')
+          return { ...t, trafficFineFee: (Number(t.trafficFineFee) || 0) + amount, trafficFineNote: join(t.trafficFineNote) };
+        return { ...t, manualExpenseTotal: (Number(t.manualExpenseTotal) || 0) + amount, manualExpenseNote: join(t.manualExpenseNote) };
+      }),
+    }));
+    showToast(`Đã thêm ${formatVND(amount)} (${EXPENSE_LABELS[kind]}) vào chuyến #${trip.tripCode}`);
+  };
+
+  const handleUpdateTripStatus = (
+    tripId: string,
+    status: 'CONFIRMED' | 'IN_PROGRESS' | 'COMPLETED'
+  ) => {
+    const trip = db.trips.find((t) => t.id === tripId);
+    if (!trip) return;
+    const by = authSession?.fullName || 'Điều hành';
+    setDb((prev) => ({
+      ...prev,
+      trips: prev.trips.map((t) =>
+        t.id === tripId
+          ? status === 'COMPLETED'
+            ? { ...t, status, completedAt: new Date().toISOString(), completedByName: by }
+            : status === 'CONFIRMED'
+            ? { ...t, status, botConfirmedAt: new Date().toLocaleString('vi-VN'), botConfirmedByDriverName: by }
+            : { ...t, status }
+          : t
+      ),
+    }));
+    showToast(
+      status === 'COMPLETED'
+        ? `Chuyến #${trip.tripCode} đã hoàn thành, doanh thu và chi phí đã được ghi nhận`
+        : status === 'CONFIRMED'
+        ? `Đã xác nhận chuyến #${trip.tripCode}`
+        : `Chuyến #${trip.tripCode} bắt đầu chạy`
+    );
+  };
+
+  const handleDriverConfirmTrip = (tripId: string, channel: 'TELEGRAM' | 'ZALO' | 'APP') => {
     const targetTrip = db.trips.find((t) => t.id === tripId);
     if (!targetTrip) return;
     const drv = db.drivers.find((d) => d.id === targetTrip.driverId);
@@ -434,12 +508,17 @@ export function App() {
       tripId: targetTrip.id,
       tripCode: targetTrip.tripCode,
       timestamp: nowStr,
-      channel,
+      channel: channel === 'APP' ? 'AI_SYSTEM' : channel,
       recipientDriverId: drv?.id,
       recipientName: drv?.fullName || 'Tài xế',
-      recipientHandle: channel === 'TELEGRAM' ? drv?.telegramUsername || '' : drv?.zaloPhone || '',
+      recipientHandle:
+        channel === 'TELEGRAM'
+          ? drv?.telegramUsername || ''
+          : channel === 'ZALO'
+          ? drv?.zaloPhone || ''
+          : drv?.phone || '',
       messageType: 'BOOKING_CONFIRM',
-      content: `✅ Tài xế ${drv?.fullName} đã bấm nút [XÁC NHẬN LỊCH #${targetTrip.tripCode}] qua ${channel}. Hệ thống đã khóa lịch xe và ghi nhận tự cấn trừ.`,
+      content: `Tài xế ${drv?.fullName} đã bấm nút [XÁC NHẬN LỊCH #${targetTrip.tripCode}] ${channel === 'APP' ? 'trên ứng dụng' : `qua ${channel}`}. Hệ thống đã khóa lịch xe và ghi nhận tự cấn trừ.`,
       status: 'DRIVER_CONFIRMED',
     };
 
@@ -458,7 +537,9 @@ export function App() {
       botLogs: [newLog, ...prev.botLogs],
     }));
 
-    showToast(`✅ Tài xế ${drv?.fullName} đã xác nhận lịch #${targetTrip.tripCode} qua ${channel}!`);
+    showToast(
+      `Tài xế ${drv?.fullName} đã xác nhận lịch #${targetTrip.tripCode}${channel === 'APP' ? '' : ` qua ${channel}`}`
+    );
   };
 
   const handleTagReassignDriver = (
@@ -483,7 +564,7 @@ export function App() {
       recipientName: newDrv.fullName,
       recipientHandle: `${newDrv.telegramUsername} / Zalo:${newDrv.zaloPhone}`,
       messageType: 'TAG_HANDOVER',
-      content: `🔄 [TAG CHUYỂN TÀI XẾ] Chuyến #${targetTrip.tripCode} đã được tag chuyển từ ${
+      content: `[TAG CHUYỂN TÀI XẾ] Chuyến #${targetTrip.tripCode} đã được tag chuyển từ ${
         oldDrv?.fullName || 'Tài xế cũ'
       } sang cho @${newDrv.fullName} (${newDrv.telegramUsername}). Đã gửi thông báo khẩn qua Zalo & Telegram!`,
       status: 'DRIVER_BUSY_RETAGGED',
@@ -505,7 +586,7 @@ export function App() {
     }));
 
     showToast(
-      `🔄 Đã @Tag chuyển chuyến #${targetTrip.tripCode} sang tài xế ${newDrv.fullName} qua Zalo & Telegram!`
+      `Đã @Tag chuyển chuyến #${targetTrip.tripCode} sang tài xế ${newDrv.fullName} qua Zalo & Telegram!`
     );
   };
 
@@ -538,7 +619,7 @@ export function App() {
     }));
 
     showToast(
-      `🧾 Bot đã cộng thêm ${formatVND(amount)} (${
+      `Bot đã cộng thêm ${formatVND(amount)} (${
         type === 'PARKING' ? 'Chi phí đậu xe' : 'Chi phí phạt GT'
       }) vào chuyến #${targetTrip.tripCode}!`
     );
@@ -576,7 +657,7 @@ export function App() {
       ...prev,
       vehicles: [newVeh, ...prev.vehicles],
     }));
-    showToast(`🚗 Đã thêm xe ${newVeh.brand} ${newVeh.model} (${newVeh.seatCategory}) vào đội xe!`);
+    showToast(`Đã thêm xe ${newVeh.brand} ${newVeh.model} (${newVeh.seatCategory}) vào đội xe!`);
   };
 
   const handleAddDriver = (drvData: Omit<Driver, 'id'>) => {
@@ -588,7 +669,7 @@ export function App() {
       ...prev,
       drivers: [newDrv, ...prev.drivers],
     }));
-    showToast(`👨‍✈️ Đã lưu hồ sơ tài xế ${newDrv.fullName} (GPLX hạng ${newDrv.licenseClass})!`);
+    showToast(`Đã lưu hồ sơ tài xế ${newDrv.fullName} (GPLX hạng ${newDrv.licenseClass})!`);
   };
 
   const handleCloneNewTenant = (newTenantData: Omit<TenantConfig, 'id' | 'createdAt'>) => {
@@ -618,7 +699,7 @@ export function App() {
       vehicles: [...prev.vehicles, ...clonedVehicles],
       drivers: [...prev.drivers, ...clonedDrivers],
     }));
-    showToast(`🧬 Đã nhân bản thành công hệ thống cho "${newTenant.name}"!`);
+    showToast(`Đã nhân bản thành công hệ thống cho "${newTenant.name}"!`);
   };
 
   // Handler when a public customer submits a booking from `/`
@@ -651,7 +732,7 @@ export function App() {
         .map((d) => `${d.telegramUsername} / Zalo:${d.zaloPhone}`)
         .join(', '),
       messageType: 'BOOKING_CONFIRM',
-      content: `🌐 [KHÁCH ĐẶT TRỰC TUYẾN TRÊN WEB]\n${botMsg}`,
+      content: `[KHÁCH ĐẶT TRỰC TUYẾN TRÊN WEB]\n${botMsg}`,
       status: 'SENT_WAITING',
     };
 
@@ -693,232 +774,115 @@ export function App() {
   }
 
   return (
-    <div
-      className={`min-h-screen text-slate-900 flex flex-col ${
-        mobilePreviewMode ? 'items-center justify-center py-3 px-2 bg-slate-950' : 'bg-slate-100'
-      }`}
-    >
-      {/* Thanh điều khiển nằm NGOÀI khung điện thoại khi bật chế độ Xem trước App Mobile */}
-      {mobilePreviewMode && (
-        <div className="w-full max-w-[430px] mb-2.5 flex items-center justify-between bg-slate-900/90 border border-slate-800 px-3.5 py-2 rounded-2xl text-white shadow-lg">
-          <div className="flex items-center gap-2 text-xs font-bold text-blue-300">
-            <Smartphone className="w-4 h-4 text-blue-400" />
-            <span>Khung App Di Động (iOS / Android)</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => setMobilePreviewMode(false)}
-            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-extrabold transition shadow-sm"
-          >
-            <Laptop className="w-3.5 h-3.5" />
-            <span>Mở Rộng Màn Hình Web</span>
-          </button>
-        </div>
-      )}
-
-      {/* Khung bao chính */}
-      <div
-        className={
-          mobilePreviewMode
-            ? 'w-full max-w-[430px] h-[840px] max-h-[88vh] bg-slate-100 rounded-[42px] shadow-2xl border-[10px] border-slate-800 flex flex-col overflow-hidden relative'
-            : 'w-full min-h-screen flex flex-col pb-20 md:pb-8'
-        }
-      >
-        {/* Thanh trạng thái điện thoại iOS/Android khi ở chế độ Mobile Preview */}
-        {mobilePreviewMode && (
-          <div className="bg-slate-900 text-white px-6 pt-2 pb-1 flex items-center justify-between text-[11px] font-bold select-none shrink-0">
-            <span>09:41</span>
-            <div className="w-24 h-4 bg-black rounded-full" />
-            <div className="flex items-center gap-1.5 text-slate-200">
-              <Signal className="w-3 h-3" />
-              <Wifi className="w-3 h-3" />
-              <BatteryCharging className="w-3.5 h-3.5 text-emerald-400" />
-            </div>
-          </div>
-        )}
-
-        {/* Top Header */}
-        <header className="bg-slate-900 text-white sticky top-0 z-30 shadow-md border-b border-slate-800 shrink-0">
-          <div
-            className={`${
-              isMobileLayout ? 'px-3.5 py-2.5' : 'max-w-7xl mx-auto px-3 sm:px-6 py-3'
-            } flex items-center justify-between gap-2`}
-          >
-            {/* Brand & Tenant Switcher */}
-            <div className="flex items-center gap-2.5 min-w-0 flex-1">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-inner shrink-0">
-                <Car className="w-5 h-5 text-white" />
+    <div className="min-h-screen flex flex-col bg-slate-100 text-slate-900">
+      <div className="w-full min-h-screen flex flex-col pb-24 md:pb-8">
+        {/* Header */}
+        <header className="glass sticky top-0 z-30 border-b border-slate-200/80 shrink-0">
+          <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 h-14 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center shrink-0">
+                <Car className="w-4 h-4 text-white" />
               </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5">
-                  <h1 className="text-sm sm:text-base font-extrabold tracking-tight truncate">
-                    {activeTenant.shortName}
-                  </h1>
-                  {authSession.role === 'ADMIN' && (
-                    <button
-                      type="button"
-                      onClick={() => setIsSaaSModalOpen(true)}
-                      className="px-2 py-0.5 rounded-full bg-blue-500/20 hover:bg-blue-500/30 border border-blue-400/30 text-[10px] font-bold text-blue-300 shrink-0 transition"
-                      title="Nhân bản doanh nghiệp mới hoặc chuyển chi nhánh"
-                    >
-                      🧬 {db.tenants.length} CN
-                    </button>
-                  )}
-                </div>
-                <p className="text-[10px] text-slate-400 truncate">
-                  {authSession.role === 'ADMIN'
-                    ? `👑 Quản trị: ${authSession.fullName}`
-                    : `👨‍✈️ Tài xế: ${authSession.fullName}`}
+              <div className="min-w-0">
+                <h1 className="text-sm font-semibold leading-tight truncate">{activeTenant.shortName}</h1>
+                <p className="text-xs text-slate-500 leading-tight truncate">
+                  {authSession.role === 'ADMIN' ? 'Quản trị' : 'Tài xế'} · {authSession.fullName}
                 </p>
               </div>
             </div>
 
-            {/* Right Controls */}
             <div className="flex items-center gap-1.5 shrink-0">
+              {authSession.role === 'ADMIN' && (
+                <button
+                  type="button"
+                  onClick={() => setIsSaaSModalOpen(true)}
+                  className="hidden sm:inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-xs font-medium text-slate-700 hover:bg-slate-200/70 transition"
+                  title="Chuyển hoặc nhân bản doanh nghiệp"
+                >
+                  <Building2 className="w-4 h-4 text-slate-500" />
+                  <span>{db.tenants.length} chi nhánh</span>
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => navigateToRoute('/')}
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold bg-slate-800 text-blue-300 border border-slate-700 hover:bg-slate-700 transition"
-                title="Xem trang công khai dành cho khách hàng đặt xe"
+                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-xs font-medium text-slate-700 hover:bg-slate-200/70 transition"
+                title="Xem trang đặt xe dành cho khách hàng"
               >
-                <Globe className="w-3.5 h-3.5 text-blue-400" />
-                <span className="hidden md:inline">Trang Khách Đặt Xe</span>
+                <Globe className="w-4 h-4 text-slate-500" />
+                <span className="hidden md:inline">Trang khách</span>
               </button>
-
-              {!isMobileLayout && (
-                <button
-                  type="button"
-                  onClick={() => setMobilePreviewMode(true)}
-                  className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700 transition"
-                >
-                  <Smartphone className="w-3.5 h-3.5 text-blue-400" />
-                  <span>Xem Giao Diện App Di Động</span>
-                </button>
-              )}
-
               {authSession.role === 'ADMIN' && (
                 <button
                   type="button"
                   onClick={() => setIsSecurityModalOpen(true)}
-                  className="relative inline-flex items-center gap-1 px-2.5 py-2 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-400/40 text-emerald-300 text-xs font-bold transition"
-                  title="Quản lý tài khoản Admin, phê duyệt đăng nhập & kết nối Supabase"
+                  className="relative inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-xs font-medium text-slate-700 hover:bg-slate-200/70 transition"
+                  title="Tài khoản quản trị & kết nối dữ liệu"
                 >
-                  <ShieldCheck className="w-4 h-4" />
-                  <span className="hidden sm:inline">Bảo mật Admin</span>
+                  <ShieldCheck className="w-4 h-4 text-slate-500" />
+                  <span className="hidden sm:inline">Bảo mật</span>
                   {pendingApprovalsCount > 0 && (
-                    <span className="px-1.5 py-0.2 rounded-full bg-rose-500 text-white text-[10px] font-extrabold">
+                    <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-xs font-semibold inline-flex items-center justify-center">
                       {pendingApprovalsCount}
                     </span>
                   )}
                 </button>
               )}
-
-              <button
-                type="button"
-                onClick={() => {
-                  setEditingTrip(null);
-                  setIsBookingModalOpen(true);
-                }}
-                className="inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-extrabold shadow-lg shadow-blue-600/30 transition shrink-0"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Đặt Lịch</span>
-              </button>
-
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingTrip(null);
+                    setIsBookingModalOpen(true);
+                  }}
+                  className="inline-flex items-center gap-1 h-8 px-3.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Đặt lịch</span>
+                </button>
+              )}
               <button
                 type="button"
                 onClick={handleLogout}
-                className="p-2 rounded-xl bg-slate-800 hover:bg-rose-600 text-slate-300 hover:text-white transition"
-                title="Đăng xuất khỏi hệ thống"
+                className="w-8 h-8 inline-flex items-center justify-center rounded-full text-slate-500 hover:bg-slate-200/70 hover:text-rose-600 transition"
+                title="Đăng xuất"
               >
                 <LogOut className="w-4 h-4" />
               </button>
             </div>
           </div>
 
-          {/* Desktop Navigation Bar */}
-          {!isMobileLayout && (
-            <div className="bg-slate-950/60 border-t border-slate-800/80">
-              <div className="max-w-7xl mx-auto px-3 sm:px-6 flex items-center gap-1 overflow-x-auto py-1.5">
+          {/* Điều hướng trên máy tính */}
+          <div className="hidden md:block">
+            <div className="max-w-7xl mx-auto px-6 flex items-center gap-1 pb-2">
+              {visibleTabs.map((tab) => (
                 <button
+                  key={tab.id}
                   type="button"
-                  onClick={() => setActiveTab('BOOKINGS')}
-                  className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold shrink-0 transition ${
-                    activeTab === 'BOOKINGS'
-                      ? 'bg-blue-600 text-white shadow-sm'
-                      : 'text-slate-300 hover:text-white hover:bg-white/5'
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`inline-flex items-center gap-2 h-8 px-3.5 rounded-full text-sm font-medium transition ${
+                    activeTab === tab.id
+                      ? 'bg-slate-900 text-white'
+                      : 'text-slate-600 hover:bg-slate-200/70'
                   }`}
                 >
-                  <Calendar className="w-4 h-4" />
-                  1. Lịch Đặt Xe & Lộ Trình (Cao Tốc / Quốc Lộ)
+                  <tab.icon className="w-4 h-4" />
+                  {tab.label}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('FINANCE')}
-                  className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold shrink-0 transition ${
-                    activeTab === 'FINANCE'
-                      ? 'bg-blue-600 text-white shadow-sm'
-                      : 'text-slate-300 hover:text-white hover:bg-white/5'
-                  }`}
-                >
-                  <Wallet className="w-4 h-4" />
-                  2. Doanh Thu, Tự Cấn Trừ, Phạt/Đậu Xe & Thực Còn Vào TK
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('FLEET_DRIVERS')}
-                  className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold shrink-0 transition ${
-                    activeTab === 'FLEET_DRIVERS'
-                      ? 'bg-blue-600 text-white shadow-sm'
-                      : 'text-slate-300 hover:text-white hover:bg-white/5'
-                  }`}
-                >
-                  <Users className="w-4 h-4" />
-                  3. Đội Xe (4-7-16 Chỗ) & Hồ Sơ Tài Xế
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('AI_BOT')}
-                  className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold shrink-0 transition ${
-                    activeTab === 'AI_BOT'
-                      ? 'bg-indigo-600 text-white shadow-sm'
-                      : 'text-slate-300 hover:text-white hover:bg-white/5'
-                  }`}
-                >
-                  <Bot className="w-4 h-4" />
-                  4. AI Bot Xác Nhận Lịch & @Tag Zalo / Telegram
-                </button>
-                {authSession.role === 'ADMIN' && (
-                  <button
-                    type="button"
-                    onClick={() => setIsSaaSModalOpen(true)}
-                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-blue-300 hover:bg-white/5 shrink-0 ml-auto"
-                  >
-                    <Building2 className="w-4 h-4" />
-                    Nhân bản Doanh nghiệp (SaaS)
-                  </button>
-                )}
-              </div>
+              ))}
             </div>
-          )}
+          </div>
         </header>
 
-        {/* Toast Notification */}
         {toastMsg && (
-          <div className="fixed bottom-20 md:bottom-6 right-4 z-50 max-w-md bg-slate-900 text-white border border-blue-500/40 px-4 py-3 rounded-2xl shadow-2xl text-xs font-bold flex items-center gap-2.5">
-            <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
-            <span>{toastMsg}</span>
+          <div className="fixed bottom-24 md:bottom-6 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2rem)] max-w-md bg-slate-900/95 text-white px-4 py-3 rounded-2xl shadow-xl text-sm font-medium">
+            {toastMsg}
           </div>
         )}
 
+
         {/* Main Content Area */}
-        <main
-          className={`flex-1 w-full mx-auto space-y-4 ${
-            mobilePreviewMode
-              ? 'overflow-y-auto px-3 py-3.5 pb-24'
-              : 'max-w-7xl px-3 sm:px-6 py-5 space-y-6'
-          }`}
-        >
+        <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 py-5 space-y-5">
           {/* Banner thông báo nếu có tài khoản đang chờ Admin xác nhận */}
           {authSession.role === 'ADMIN' && pendingApprovalsCount > 0 && (
             <div className="bg-amber-50 border border-amber-300 rounded-2xl p-3.5 flex flex-wrap items-center justify-between gap-2 text-xs">
@@ -941,127 +905,105 @@ export function App() {
           {/* TAB 1: LỊCH ĐẶT XE & LỘ TRÌNH DI CHUYỂN */}
           {activeTab === 'BOOKINGS' && (
             <div className="space-y-4">
-              {/* Thẻ Tổng Quan Tài Chính Nhanh */}
-              <div
-                className={
-                  isMobileLayout
-                    ? 'grid grid-cols-2 gap-2.5'
-                    : 'grid grid-cols-2 lg:grid-cols-4 gap-3'
-                }
-              >
-                <div
+              {/* Tổng quan tài chính */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <button
+                  type="button"
                   onClick={() => setActiveTab('FINANCE')}
-                  className="bg-white rounded-2xl p-3.5 border border-slate-200 shadow-sm cursor-pointer hover:border-emerald-400 transition"
+                  className="text-left bg-white rounded-2xl p-4 shadow-sm hover:shadow-md transition"
                 >
-                  <div className="text-[10px] font-bold text-slate-500 uppercase">
-                    1. Tổng Doanh Thu (+)
-                  </div>
-                  <div className="text-base sm:text-xl font-extrabold text-emerald-700 mt-0.5">
+                  <div className="text-xs font-medium text-slate-500">Tổng doanh thu</div>
+                  <div className="text-xl sm:text-2xl font-semibold tracking-tight mt-1 text-slate-900">
                     {formatVND(kpi.grossRevenue)}
                   </div>
-                  <div className="text-[10px] text-slate-500 mt-0.5">
-                    {tenantTrips.length} chuyến đang quản lý
+                  <div className="text-xs text-slate-500 mt-1">
+                    {tenantTrips.filter((t) => t.status === 'COMPLETED').length} chuyến hoàn thành
                   </div>
-                </div>
+                </button>
 
-                <div
+                <button
+                  type="button"
                   onClick={() => setActiveTab('FINANCE')}
-                  className="bg-white rounded-2xl p-3.5 border border-slate-200 shadow-sm cursor-pointer hover:border-amber-400 transition"
+                  className="text-left bg-white rounded-2xl p-4 shadow-sm hover:shadow-md transition"
                 >
-                  <div className="text-[10px] font-bold text-slate-500 uppercase">
-                    2. Tự Cấn Trừ + Nhập Tay
+                  <div className="text-xs font-medium text-slate-500">Cấn trừ & chi phí nhập tay</div>
+                  <div className="text-xl sm:text-2xl font-semibold tracking-tight mt-1 text-slate-900">
+                    {formatVND(kpi.totalAutoDeducted + kpi.totalManualExpense)}
                   </div>
-                  <div className="text-base sm:text-xl font-extrabold text-amber-700 mt-0.5">
-                    -{formatVND(kpi.totalAutoDeducted + kpi.totalManualExpense)}
+                  <div className="text-xs text-slate-500 mt-1">
+                    Tự động: {formatVND(kpi.totalAutoDeducted)}
                   </div>
-                  <div className="text-[10px] text-slate-500 mt-0.5">
-                    Tự trừ: {formatVND(kpi.totalAutoDeducted)}
-                  </div>
-                </div>
+                </button>
 
-                <div
+                <button
+                  type="button"
                   onClick={() => setActiveTab('FINANCE')}
-                  className="bg-white rounded-2xl p-3.5 border border-rose-200 shadow-sm cursor-pointer hover:border-rose-400 transition"
+                  className="text-left bg-white rounded-2xl p-4 shadow-sm hover:shadow-md transition"
                 >
-                  <div className="text-[10px] font-bold text-rose-700 uppercase">
-                    3. Phạt & Đậu Xe (-)
+                  <div className="text-xs font-medium text-slate-500">Phạt & đậu xe</div>
+                  <div className="text-xl sm:text-2xl font-semibold tracking-tight mt-1 text-rose-600">
+                    {formatVND(kpi.totalRiskExpense)}
                   </div>
-                  <div className="text-base sm:text-xl font-extrabold text-rose-600 mt-0.5">
-                    -{formatVND(kpi.totalRiskExpense)}
+                  <div className="text-xs text-slate-500 mt-1 truncate">
+                    Đậu xe {formatVND(kpi.totalParking)} · Phạt {formatVND(kpi.totalTrafficFine)}
                   </div>
-                  <div className="text-[10px] text-slate-600 mt-0.5 truncate">
-                    Đậu: {formatVND(kpi.totalParking)} • Phạt: {formatVND(kpi.totalTrafficFine)}
-                  </div>
-                </div>
+                </button>
 
-                <div
+                <button
+                  type="button"
                   onClick={() => setActiveTab('FINANCE')}
-                  className="bg-gradient-to-br from-blue-700 to-slate-900 text-white rounded-2xl p-3.5 shadow-md cursor-pointer hover:opacity-95 transition"
+                  className="text-left bg-slate-900 text-white rounded-2xl p-4 shadow-sm hover:bg-slate-800 transition"
                 >
-                  <div className="text-[10px] font-bold text-blue-200 uppercase">
-                    4. Thực Còn Vào TK (=)
-                  </div>
-                  <div className="text-base sm:text-xl font-extrabold text-white mt-0.5">
+                  <div className="text-xs font-medium text-slate-400">Thực còn vào tài khoản</div>
+                  <div className="text-xl sm:text-2xl font-semibold tracking-tight mt-1">
                     {formatVND(kpi.netRemainingToAccount)}
                   </div>
-                  <div className="text-[10px] text-blue-200 mt-0.5 flex items-center gap-0.5">
-                    <span>Đối soát chi tiết</span>
-                    <ChevronRight className="w-3 h-3" />
+                  <div className="text-xs text-slate-400 mt-1 inline-flex items-center gap-0.5">
+                    Xem đối soát <ChevronRight className="w-3 h-3" />
                   </div>
-                </div>
+                </button>
               </div>
 
-              {/* Thanh Lọc Nhanh Theo Loại Ghế (4 chỗ, 7 chỗ...), Tuyến Cao tốc/Quốc lộ & Tài xế */}
-              <div className="bg-white rounded-2xl p-3.5 border border-slate-200 shadow-sm space-y-2.5">
-                <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
-                  <span className="text-xs font-bold text-slate-600 mr-1 shrink-0">
-                    Loại ghế:
-                  </span>
-                  {(
-                    ['ALL', '4 chỗ', '5 chỗ', '7 chỗ', '9 chỗ Limousine', '16 chỗ'] as const
-                  ).map((seat) => (
-                    <button
-                      key={seat}
-                      type="button"
-                      onClick={() => setBookingSeatFilter(seat)}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-bold shrink-0 transition ${
-                        bookingSeatFilter === seat
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                      }`}
-                    >
-                      {seat === 'ALL' ? 'Tất cả ghế' : seat}
-                    </button>
-                  ))}
+              {/* Bộ lọc */}
+              <div className="bg-white rounded-2xl p-3 shadow-sm space-y-3">
+                <div className="flex items-center gap-1 overflow-x-auto p-1 rounded-xl bg-slate-100 w-fit max-w-full">
+                  {(['ALL', '4 chỗ', '5 chỗ', '7 chỗ', '9 chỗ Limousine', '16 chỗ'] as const).map(
+                    (seat) => (
+                      <button
+                        key={seat}
+                        type="button"
+                        onClick={() => setBookingSeatFilter(seat)}
+                        className={`px-3 h-7 rounded-lg text-xs font-medium shrink-0 transition ${
+                          bookingSeatFilter === seat
+                            ? 'bg-white text-slate-900 shadow-sm'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        {seat === 'ALL' ? 'Tất cả' : seat}
+                      </button>
+                    )
+                  )}
                 </div>
 
-                <div
-                  className={
-                    isMobileLayout
-                      ? 'grid grid-cols-2 gap-2'
-                      : 'flex flex-wrap items-center gap-2'
-                  }
-                >
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                   <select
                     value={bookingRouteFilter}
                     onChange={(e) =>
-                      setBookingRouteFilter(
-                        e.target.value as 'ALL' | 'HIGHWAY' | 'NATIONAL_ROAD'
-                      )
+                      setBookingRouteFilter(e.target.value as 'ALL' | 'HIGHWAY' | 'NATIONAL_ROAD')
                     }
-                    className="w-full sm:w-auto rounded-xl border border-slate-300 bg-slate-50 px-2.5 py-1.5 text-xs font-bold text-slate-800"
+                    className="w-full h-9 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-800"
                   >
-                    <option value="ALL">🛣️ Tất cả tuyến đường</option>
-                    <option value="HIGHWAY">🛣️ Tuyến Cao Tốc (ETC)</option>
-                    <option value="NATIONAL_ROAD">🛤️ Đường Quốc Lộ</option>
+                    <option value="ALL">Tất cả tuyến đường</option>
+                    <option value="HIGHWAY">Cao tốc (ETC)</option>
+                    <option value="NATIONAL_ROAD">Quốc lộ</option>
                   </select>
 
                   <select
                     value={bookingDriverFilter}
                     onChange={(e) => setBookingDriverFilter(e.target.value)}
-                    className="w-full sm:w-auto rounded-xl border border-slate-300 bg-slate-50 px-2.5 py-1.5 text-xs font-bold text-slate-800"
+                    className="w-full h-9 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-800"
                   >
-                    <option value="ALL">👨‍✈️ Tất cả tài xế</option>
+                    <option value="ALL">Tất cả tài xế</option>
                     {tenantDrivers.map((d) => (
                       <option key={d.id} value={d.id}>
                         {d.fullName} ({d.telegramUsername})
@@ -1071,7 +1013,12 @@ export function App() {
                 </div>
               </div>
 
-              {/* Danh sách Lịch trình & Chuyến xe */}
+              {/* Danh sách chuyến */}
+              {filteredDashboardTrips.length === 0 && (
+                <div className="bg-white rounded-2xl shadow-sm py-16 text-center text-sm text-slate-500">
+                  Chưa có chuyến nào phù hợp bộ lọc.
+                </div>
+              )}
               <div className="space-y-3">
                 {filteredDashboardTrips.map((trip) => {
                   const veh = tenantVehicles.find((v) => v.id === trip.vehicleId);
@@ -1080,270 +1027,299 @@ export function App() {
                     trip.taggedDriverIds?.includes(d.id)
                   );
                   const fin = calculateTripFinancials(trip);
+                  const myDriver = tenantDrivers.find((d) => d.id === authSession.driverId);
+                  // Chuyến có tài xế: tài xế được gán hoặc admin. Chuyến tự lái: chủ xe của chiếc xe đó hoặc admin.
+                  const canActWithDriver =
+                    isAdmin || (!!authSession.driverId && trip.driverId === authSession.driverId);
+                  const canActSelfDrive = isAdmin || ownsVehicle(myDriver, veh);
 
                   return (
-                    <div
-                      key={trip.id}
-                      className="bg-white rounded-2xl border border-slate-200 shadow-sm p-3.5 sm:p-5 hover:border-blue-400 transition space-y-3"
-                    >
-                      {/* Top Row */}
-                      <div className="flex flex-wrap items-center justify-between gap-1.5">
+                    <div key={trip.id} className="bg-white rounded-2xl shadow-sm p-4 sm:p-5 space-y-4">
+                      {/* Hàng đầu: mã chuyến, trạng thái, thao tác */}
+                      <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="flex flex-wrap items-center gap-1.5">
-                          <span className="px-2 py-0.5 rounded-md bg-slate-900 text-white text-[11px] font-extrabold">
-                            #{trip.tripCode}
+                          <span className="text-sm font-semibold text-slate-900">#{trip.tripCode}</span>
+                          <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-xs font-medium">
+                            {trip.bookingType === 'SELF_DRIVE' ? 'Tự lái' : 'Có tài xế'}
                           </span>
-                          <span
-                            className={`px-2 py-0.5 rounded-md text-[11px] font-bold ${
-                              trip.bookingType === 'SELF_DRIVE'
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : 'bg-blue-100 text-blue-800'
-                            }`}
-                          >
-                            {trip.bookingType === 'SELF_DRIVE'
-                              ? '🔑 Thuê Tự Lái'
-                              : '👨‍✈️ Có Tài Xế'}
-                          </span>
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
-                              trip.routeType === 'HIGHWAY'
-                                ? 'bg-indigo-600 text-white'
-                                : trip.routeType === 'NATIONAL_ROAD'
-                                ? 'bg-amber-500 text-white'
-                                : 'bg-teal-600 text-white'
-                            }`}
-                          >
+                          <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-xs font-medium">
                             {trip.routeType === 'HIGHWAY'
-                              ? '🛣️ Đi Cao Tốc'
+                              ? 'Cao tốc'
                               : trip.routeType === 'NATIONAL_ROAD'
-                              ? '🛤️ Đường Quốc Lộ'
-                              : '🔀 Cao Tốc + QL'}
+                              ? 'Quốc lộ'
+                              : 'Cao tốc + quốc lộ'}
                           </span>
-                        </div>
-
-                        <div className="flex items-center gap-1.5">
                           <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            className={`px-2 py-0.5 rounded-full text-xs font-medium ${
                               trip.status === 'PENDING_CONFIRM'
-                                ? 'bg-amber-100 text-amber-800 border border-amber-300'
-                                : trip.status === 'IN_PROGRESS'
-                                ? 'bg-blue-100 text-blue-800'
-                                : 'bg-emerald-100 text-emerald-800'
+                                ? 'bg-amber-100 text-amber-700'
+                                : trip.status === 'COMPLETED'
+                                ? 'bg-emerald-100 text-emerald-700'
+                                : trip.status === 'CANCELLED'
+                                ? 'bg-slate-100 text-slate-500'
+                                : 'bg-blue-100 text-blue-700'
                             }`}
                           >
                             {trip.status === 'PENDING_CONFIRM'
-                              ? '⏳ Chờ Xác Nhận'
+                              ? 'Chờ xác nhận'
+                              : trip.status === 'CONFIRMED'
+                              ? 'Đã xác nhận'
                               : trip.status === 'IN_PROGRESS'
-                              ? '🚗 Đang Chạy'
-                              : '✅ Hoàn Thành'}
+                              ? 'Đang chạy'
+                              : trip.status === 'COMPLETED'
+                              ? 'Hoàn thành'
+                              : 'Đã hủy'}
                           </span>
+                        </div>
+
+                        <div className="flex items-center gap-1">
                           <button
                             type="button"
                             onClick={() => setVoucherTrip(trip)}
-                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-[10px] font-bold transition"
-                            title="In phiếu lệnh điều xe / Copy gửi nhóm Zalo"
+                            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-full bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-medium transition"
+                            title="In phiếu lệnh điều xe / sao chép gửi nhóm Zalo"
                           >
                             <Printer className="w-3.5 h-3.5" />
                             <span>Phiếu / Zalo</span>
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingTrip(trip);
-                              setIsBookingModalOpen(true);
-                            }}
-                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition"
-                            title="Chỉnh sửa lịch & chi phí"
-                          >
-                            <Edit3 className="w-3.5 h-3.5" />
-                          </button>
+                          {isAdmin ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingTrip(trip);
+                                setIsBookingModalOpen(true);
+                              }}
+                              className="w-8 h-8 inline-flex items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 transition"
+                              title="Chỉnh sửa lịch & chi phí"
+                            >
+                              <Edit3 className="w-4 h-4" />
+                            </button>
+                          ) : (
+                            (trip.status === 'CONFIRMED' || trip.status === 'IN_PROGRESS') &&
+                            (trip.bookingType === 'SELF_DRIVE' ? canActSelfDrive : canActWithDriver) && (
+                              <button
+                                type="button"
+                                onClick={() => setExpenseTrip(trip)}
+                                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-medium transition"
+                                title="Thêm chi phí phát sinh: đậu xe, vá lốp..."
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                                <span>Thêm chi phí</span>
+                              </button>
+                            )
+                          )}
                           {authSession.role === 'ADMIN' && (
                             <button
                               type="button"
                               onClick={() => {
+                                if (!window.confirm(`Xóa chuyến #${trip.tripCode}? Thao tác này không hoàn tác được.`)) return;
                                 setDb((prev) => ({
                                   ...prev,
                                   trips: prev.trips.filter((t) => t.id !== trip.id),
                                 }));
-                                showToast(`🗑️ Đã xóa chuyến #${trip.tripCode}!`);
+                                showToast(`Đã xóa chuyến #${trip.tripCode}`);
                               }}
-                              className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 transition"
-                              title="Xóa chuyến đi"
+                              className="w-8 h-8 inline-flex items-center justify-center rounded-full text-slate-500 hover:bg-rose-50 hover:text-rose-600 transition"
+                              title="Xóa chuyến"
                             >
-                              <Trash2 className="w-3.5 h-3.5" />
+                              <Trash2 className="w-4 h-4" />
                             </button>
                           )}
                         </div>
                       </div>
 
-                      {/* Vehicle pill */}
+                      {/* Xe */}
                       {veh && (
-                        <div className="px-2.5 py-1.5 rounded-xl bg-indigo-50/80 text-indigo-950 border border-indigo-200/80 text-xs font-extrabold flex items-center justify-between">
-                          <span>
-                            🚘 [{veh.seatCategory}] {veh.brand} {veh.model}
+                        <div className="flex items-center justify-between gap-2 text-sm">
+                          <span className="font-medium text-slate-900">
+                            {veh.brand} {veh.model}
+                            <span className="text-slate-500 font-normal"> · {veh.seatCategory}</span>
                           </span>
-                          <span className="px-2 py-0.5 rounded bg-slate-900 text-amber-300 font-mono text-[11px]">
+                          <span className="px-2 py-0.5 rounded-md border border-slate-300 text-slate-800 text-xs font-medium font-mono bg-white">
                             {veh.plateNumber}
                           </span>
                         </div>
                       )}
 
-                      {/* Middle Row: Route & Driver */}
-                      <div
-                        className={
-                          isMobileLayout
-                            ? 'grid grid-cols-1 gap-2.5 bg-slate-50 rounded-xl p-3 border border-slate-200/80 text-xs'
-                            : 'grid grid-cols-1 md:grid-cols-2 gap-3 bg-slate-50 rounded-xl p-3.5 border border-slate-200/70 text-xs'
-                        }
-                      >
-                        <div className="space-y-1">
-                          <div className="font-bold text-slate-900 text-xs sm:text-sm flex items-start gap-1.5">
+                      {/* Lộ trình & tài xế */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 rounded-xl bg-slate-50 p-4 text-sm">
+                        <div className="space-y-1.5">
+                          <div className="font-medium text-slate-900 flex items-start gap-1.5">
                             <MapPin className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
                             <span>
-                              {trip.pickupLocation} ➔ {trip.dropoffLocation}
+                              {trip.pickupLocation} → {trip.dropoffLocation}
                             </span>
                           </div>
                           <div className="text-slate-600">
-                            • Tuyến: <strong>{trip.routeDetail}</strong> ({trip.distanceKm} km)
+                            Tuyến: <span className="text-slate-900">{trip.routeDetail}</span> ({trip.distanceKm} km)
                           </div>
                           <div className="text-slate-600">
-                            • Ngày giờ: <strong>{trip.tripDate}</strong> ({trip.departureTime} –{' '}
-                            {trip.returnTime})
+                            Thời gian: <span className="text-slate-900">{trip.tripDate}</span>
+                            {trip.tripEndDate && trip.tripEndDate !== trip.tripDate && (
+                              <> → <span className="text-slate-900">{trip.tripEndDate}</span></>
+                            )}{' '}
+                            ({trip.departureTime} – {trip.returnTime})
                           </div>
                           <div className="text-slate-600">
-                            • Khách: <strong>{trip.customerName}</strong> ({trip.customerPhone})
+                            Khách: <span className="text-slate-900">{trip.customerName}</span> ({trip.customerPhone})
                           </div>
                         </div>
 
-                        <div
-                          className={
-                            isMobileLayout
-                              ? 'space-y-1 border-t border-slate-200/80 pt-2.5'
-                              : 'space-y-1 md:border-l md:border-slate-200 md:pl-4'
-                          }
-                        >
-                          <div className="font-bold text-slate-900 flex items-center gap-1.5">
-                            <UserCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                        {trip.bookingType === 'SELF_DRIVE' ? (
+                          <div className="md:border-l md:border-slate-200 md:pl-4 text-slate-600 flex items-start gap-1.5">
+                            <UserCheck className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" />
+                            <span>Khách tự lái, không gán tài xế</span>
+                          </div>
+                        ) : (
+                        <div className="space-y-1.5 md:border-l md:border-slate-200 md:pl-4">
+                          <div className="font-medium text-slate-900 flex items-start gap-1.5">
+                            <UserCheck className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" />
                             <span>
-                              Tài xế: {drv?.fullName} (Bằng {drv?.licenseClass} • {drv?.phone})
+                              {drv?.fullName}
+                              <span className="text-slate-500 font-normal">
+                                {' '}
+                                · Bằng {drv?.licenseClass} · {drv?.phone}
+                              </span>
                             </span>
                           </div>
                           <div className="text-slate-600 flex flex-wrap items-center gap-1">
-                            <span>• Tag Zalo/Telegram:</span>
+                            <span>Đã tag:</span>
                             {taggedDrvs.map((d) => (
                               <span
                                 key={d.id}
-                                className="inline-block bg-blue-100 text-blue-800 font-semibold px-1.5 py-0.5 rounded text-[10px]"
+                                className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-xs font-medium"
                               >
                                 {d.telegramUsername}
                               </span>
                             ))}
                           </div>
-                          {trip.status === 'PENDING_CONFIRM' && (
-                            <div className="pt-1.5 flex items-center gap-2">
+                          {trip.status === 'PENDING_CONFIRM' && canActWithDriver && (
+                            <div className="pt-1">
                               <button
                                 type="button"
-                                onClick={() => handleDriverConfirmTrip(trip.id, 'TELEGRAM')}
-                                className="flex-1 sm:flex-initial px-2.5 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-[11px] font-bold text-center"
+                                onClick={() => handleDriverConfirmTrip(trip.id, 'APP')}
+                                className="h-8 px-4 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium transition"
                               >
-                                ✅ Xác nhận Telegram
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDriverConfirmTrip(trip.id, 'ZALO')}
-                                className="flex-1 sm:flex-initial px-2.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold text-center"
-                              >
-                                ✅ Xác nhận Zalo
+                                Xác nhận nhận chuyến
                               </button>
                             </div>
                           )}
                         </div>
+                        )}
                       </div>
 
-                      {/* Bottom Row: Financial Breakdown Bar */}
-                      {isMobileLayout ? (
-                        <div className="grid grid-cols-2 gap-2 text-xs">
-                          <div className="bg-emerald-50/80 border border-emerald-200 rounded-xl px-3 py-2 flex items-center justify-between">
-                            <span className="text-[11px] text-slate-600 font-medium">
-                              1. Tiền chuyến (+)
-                            </span>
-                            <span className="font-extrabold text-emerald-700">
-                              {formatVND(fin.grossRevenue)}
-                            </span>
-                          </div>
-                          <div className="bg-amber-50/80 border border-amber-200 rounded-xl px-3 py-2 flex items-center justify-between">
-                            <span className="text-[11px] text-slate-600 font-medium">
-                              2. Tự cấn trừ (-)
-                            </span>
-                            <span className="font-bold text-amber-800">
-                              -{formatVND(fin.totalAutoDeducted)}
-                            </span>
-                          </div>
-                          <div className="bg-orange-50/80 border border-orange-200 rounded-xl px-3 py-2 flex items-center justify-between">
-                            <span className="text-[11px] text-slate-600 font-medium">
-                              3. Nhập tay (-)
-                            </span>
-                            <span className="font-bold text-orange-700">
-                              -{formatVND(fin.totalManualExpense)}
-                            </span>
-                          </div>
-                          <div className="bg-rose-50/80 border border-rose-200 rounded-xl px-3 py-2 flex items-center justify-between">
-                            <span className="text-[11px] text-rose-700 font-medium">
-                              4. Phạt & Đậu xe
-                            </span>
-                            <span className="font-bold text-rose-600">
-                              -{formatVND(fin.totalRiskExpense)}
-                            </span>
-                          </div>
-                          <div className="col-span-2 bg-slate-900 text-white rounded-xl px-3.5 py-2.5 flex items-center justify-between">
-                            <span className="text-xs text-blue-300 font-bold">
-                              5. Thực tế còn lại vào TK (=)
-                            </span>
-                            <span className="font-extrabold text-base text-white">
-                              {formatVND(fin.netRemainingToAccount)}
-                            </span>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="grid grid-cols-5 gap-2.5 pt-1 text-xs">
-                          <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-xl px-3 py-2">
-                            <div className="text-[10px] text-slate-500">1. Tiền chuyến (+)</div>
-                            <div className="font-extrabold text-emerald-700">
-                              {formatVND(fin.grossRevenue)}
-                            </div>
-                          </div>
-                          <div className="bg-amber-50/70 border border-amber-200/80 rounded-xl px-3 py-2">
-                            <div className="text-[10px] text-slate-500">
-                              2. Tự cấn trừ (Cao tốc+Xăng)
-                            </div>
-                            <div className="font-bold text-amber-800">
-                              -{formatVND(fin.totalAutoDeducted)}
-                            </div>
-                          </div>
-                          <div className="bg-orange-50/70 border border-orange-200/80 rounded-xl px-3 py-2">
-                            <div className="text-[10px] text-slate-500">3. Chi phí nhập tay (-)</div>
-                            <div className="font-bold text-orange-700">
-                              -{formatVND(fin.totalManualExpense)}
-                            </div>
-                          </div>
-                          <div className="bg-rose-50/70 border border-rose-200/80 rounded-xl px-3 py-2">
-                            <div className="text-[10px] text-rose-700 font-semibold">
-                              4. Phạt ({formatVND(fin.trafficFineFee)}) + Đậu xe (
-                              {formatVND(fin.parkingFee)})
-                            </div>
-                            <div className="font-bold text-rose-600">
-                              -{formatVND(fin.totalRiskExpense)}
-                            </div>
-                          </div>
-                          <div className="bg-slate-900 text-white rounded-xl px-3 py-2 flex flex-col justify-center">
-                            <div className="text-[10px] text-blue-300 font-semibold">
-                              5. Thực còn vào TK (=)
-                            </div>
-                            <div className="font-extrabold text-sm text-white">
-                              {formatVND(fin.netRemainingToAccount)}
-                            </div>
+                      {/* Hoàn thành chuyến: ghi nhận doanh thu */}
+                      {trip.status !== 'CANCELLED' && (
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="text-xs text-slate-500">
+                            {trip.status === 'COMPLETED'
+                              ? `Hoàn thành ${
+                                  trip.completedAt
+                                    ? new Date(trip.completedAt).toLocaleString('vi-VN')
+                                    : ''
+                                }${trip.completedByName ? ` · xác nhận bởi ${trip.completedByName}` : ''}. Đã ghi nhận vào doanh thu.`
+                              : 'Số liệu dưới đây là dự kiến, được ghi nhận vào doanh thu khi chuyến hoàn thành.'}
+                          </p>
+                          <div className="flex items-center gap-2">
+                            {trip.bookingType === 'SELF_DRIVE' ? (
+                              canActSelfDrive && (
+                                <>
+                                  {trip.status === 'PENDING_CONFIRM' && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleUpdateTripStatus(trip.id, 'CONFIRMED')}
+                                      className="h-8 px-3.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium transition"
+                                    >
+                                      Xác nhận chuyến
+                                    </button>
+                                  )}
+                                  {trip.status === 'CONFIRMED' && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleUpdateTripStatus(trip.id, 'IN_PROGRESS')}
+                                      className="h-8 px-3.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-medium transition"
+                                    >
+                                      Giao xe cho khách
+                                    </button>
+                                  )}
+                                  {trip.status === 'IN_PROGRESS' && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (window.confirm(`Xác nhận nhận lại xe và hoàn thành chuyến #${trip.tripCode}? Doanh thu sẽ được ghi nhận.`))
+                                          handleUpdateTripStatus(trip.id, 'COMPLETED');
+                                      }}
+                                      className="h-8 px-3.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium transition"
+                                    >
+                                      Nhận lại xe, hoàn thành
+                                    </button>
+                                  )}
+                                </>
+                              )
+                            ) : (
+                              canActWithDriver && (
+                                <>
+                                  {trip.status === 'CONFIRMED' && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleUpdateTripStatus(trip.id, 'IN_PROGRESS')}
+                                      className="h-8 px-3.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-medium transition"
+                                    >
+                                      Bắt đầu chạy
+                                    </button>
+                                  )}
+                                  {(trip.status === 'CONFIRMED' || trip.status === 'IN_PROGRESS') && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (window.confirm(`Xác nhận hoàn thành chuyến #${trip.tripCode}? Doanh thu và chi phí sẽ được ghi nhận.`))
+                                          handleUpdateTripStatus(trip.id, 'COMPLETED');
+                                      }}
+                                      className="h-8 px-3.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium transition"
+                                    >
+                                      Hoàn thành chuyến
+                                    </button>
+                                  )}
+                                </>
+                              )
+                            )}
                           </div>
                         </div>
                       )}
+
+                      {/* Đối soát chuyến */}
+                      <div className="grid grid-cols-2 md:grid-cols-5 gap-px rounded-xl overflow-hidden bg-slate-200 text-sm">
+                        <div className="bg-white px-3 py-2.5">
+                          <div className="text-xs text-slate-500">Tiền chuyến</div>
+                          <div className="font-semibold text-slate-900">{formatVND(fin.grossRevenue)}</div>
+                        </div>
+                        <div className="bg-white px-3 py-2.5">
+                          <div className="text-xs text-slate-500">Cấn trừ tự động</div>
+                          <div className="font-semibold text-slate-900">
+                            -{formatVND(fin.totalAutoDeducted)}
+                          </div>
+                        </div>
+                        <div className="bg-white px-3 py-2.5">
+                          <div className="text-xs text-slate-500">Nhập tay</div>
+                          <div className="font-semibold text-slate-900">
+                            -{formatVND(fin.totalManualExpense)}
+                          </div>
+                        </div>
+                        <div className="bg-white px-3 py-2.5">
+                          <div className="text-xs text-slate-500">Phạt & đậu xe</div>
+                          <div className="font-semibold text-rose-600">
+                            -{formatVND(fin.totalRiskExpense)}
+                          </div>
+                        </div>
+                        <div className="bg-slate-900 px-3 py-2.5 col-span-2 md:col-span-1">
+                          <div className="text-xs text-slate-400">
+                            {trip.status === 'COMPLETED' ? 'Thực còn vào TK' : 'Dự kiến còn lại'}
+                          </div>
+                          <div className="font-semibold text-white">
+                            {formatVND(fin.netRemainingToAccount)}
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   );
                 })}
@@ -1351,11 +1327,48 @@ export function App() {
             </div>
           )}
 
+          {/* TAB: HÀNH TRÌNH CHUYẾN */}
+          {isAdmin && activeTab === 'JOURNEYS' && (
+            <JourneyRoutesTab
+              routes={(db.journeyRoutes || []).filter((r) => r.tenantId === activeTenant.id)}
+              activeTenantId={activeTenant.id}
+              canEdit={authSession.role === 'ADMIN'}
+              onSave={(data, existingId) => {
+                setDb((prev) => ({
+                  ...prev,
+                  journeyRoutes: existingId
+                    ? (prev.journeyRoutes || []).map((r) =>
+                        r.id === existingId ? { ...r, ...data } : r
+                      )
+                    : [...(prev.journeyRoutes || []), { ...data, id: `JR-${Date.now()}` } as JourneyRoute],
+                }));
+                showToast(existingId ? 'Đã cập nhật hành trình' : 'Đã thêm hành trình');
+              }}
+              onDelete={(id) => {
+                setDb((prev) => ({
+                  ...prev,
+                  journeyRoutes: (prev.journeyRoutes || []).filter((r) => r.id !== id),
+                }));
+                showToast('Đã xóa hành trình');
+              }}
+            />
+          )}
+
           {/* TAB 2: ĐỐI SOÁT DOANH THU, CHI PHÍ TỰ CẤN TRỪ, PHẠT & ĐẬU XE */}
-          {activeTab === 'FINANCE' && (
+          {activeTab === 'FINANCE' && !isAdmin && (
+            <DriverEarningsTab
+              me={tenantDrivers.find((d) => d.id === authSession.driverId)}
+              trips={tenantTrips}
+              vehicles={tenantVehicles}
+              drivers={tenantDrivers}
+            />
+          )}
+          {activeTab === 'FINANCE' && isAdmin && (
             <FinanceSettlementTab
               trips={tenantTrips}
-              drivers={tenantDrivers}
+              drivers={
+                isAdmin ? tenantDrivers : tenantDrivers.filter((d) => d.id === authSession.driverId)
+              }
               vehicles={tenantVehicles}
               isMobile={isMobileLayout}
               onEditTrip={(trip) => {
@@ -1367,7 +1380,7 @@ export function App() {
           )}
 
           {/* TAB 3: QUẢN LÝ ĐỘI XE (4 CHỖ, 7 CHỖ...) & HỒ SƠ TÀI XẾ */}
-          {activeTab === 'FLEET_DRIVERS' && (
+          {isAdmin && activeTab === 'FLEET_DRIVERS' && (
             <FleetAndDriversTab
               vehicles={tenantVehicles}
               drivers={tenantDrivers}
@@ -1382,14 +1395,14 @@ export function App() {
                     v.id === updatedVeh.id ? updatedVeh : v
                   ),
                 }));
-                showToast(`✅ Đã cập nhật thông tin xe ${updatedVeh.plateNumber}!`);
+                showToast(`Đã cập nhật thông tin xe ${updatedVeh.plateNumber}!`);
               }}
               onDeleteVehicle={(vehId) => {
                 setDb((prev) => ({
                   ...prev,
                   vehicles: prev.vehicles.filter((v) => v.id !== vehId),
                 }));
-                showToast('🗑️ Đã xóa xe khỏi danh sách!');
+                showToast('Đã xóa xe khỏi danh sách!');
               }}
               onAddDriver={handleAddDriver}
               onUpdateDriver={(updatedDrv) => {
@@ -1399,20 +1412,20 @@ export function App() {
                     d.id === updatedDrv.id ? updatedDrv : d
                   ),
                 }));
-                showToast(`✅ Đã cập nhật hồ sơ tài xế ${updatedDrv.fullName}!`);
+                showToast(`Đã cập nhật hồ sơ tài xế ${updatedDrv.fullName}!`);
               }}
               onDeleteDriver={(drvId) => {
                 setDb((prev) => ({
                   ...prev,
                   drivers: prev.drivers.filter((d) => d.id !== drvId),
                 }));
-                showToast('🗑️ Đã xóa hồ sơ tài xế!');
+                showToast('Đã xóa hồ sơ tài xế!');
               }}
             />
           )}
 
           {/* TAB 4: AI BOT XÁC NHẬN LỊCH & TAG TÊN TÀI XẾ QUA ZALO / TELEGRAM */}
-          {activeTab === 'AI_BOT' && (
+          {isAdmin && activeTab === 'AI_BOT' && (
             <AIBotZaloTelegramTab
               trips={tenantTrips}
               drivers={tenantDrivers}
@@ -1434,60 +1447,28 @@ export function App() {
                       : t
                   ),
                 }));
-                showToast('✅ Đã lưu cấu hình Telegram Bot Token & Zalo Webhook!');
+                showToast('Đã lưu cấu hình Telegram Bot Token & Zalo Webhook!');
               }}
             />
           )}
         </main>
 
-        {/* Bottom Navigation Bar */}
-        <nav
-          className={`${
-            mobilePreviewMode
-              ? 'absolute bottom-0 left-0 right-0'
-              : 'md:hidden fixed bottom-0 left-0 right-0'
-          } z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 px-2 py-1.5 grid grid-cols-4 gap-1 shadow-lg`}
-        >
-          <button
-            type="button"
-            onClick={() => setActiveTab('BOOKINGS')}
-            className={`flex flex-col items-center justify-center py-1.5 rounded-xl text-[11px] font-bold transition ${
-              activeTab === 'BOOKINGS' ? 'text-blue-600 bg-blue-50' : 'text-slate-500'
-            }`}
-          >
-            <Calendar className="w-5 h-5 mb-0.5" />
-            <span>Lịch Xe</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('FINANCE')}
-            className={`flex flex-col items-center justify-center py-1.5 rounded-xl text-[11px] font-bold transition ${
-              activeTab === 'FINANCE' ? 'text-blue-600 bg-blue-50' : 'text-slate-500'
-            }`}
-          >
-            <Wallet className="w-5 h-5 mb-0.5" />
-            <span>Đối Soát TK</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('FLEET_DRIVERS')}
-            className={`flex flex-col items-center justify-center py-1.5 rounded-xl text-[11px] font-bold transition ${
-              activeTab === 'FLEET_DRIVERS' ? 'text-blue-600 bg-blue-50' : 'text-slate-500'
-            }`}
-          >
-            <Car className="w-5 h-5 mb-0.5" />
-            <span>Xe & Tài Xế</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('AI_BOT')}
-            className={`flex flex-col items-center justify-center py-1.5 rounded-xl text-[11px] font-bold transition ${
-              activeTab === 'AI_BOT' ? 'text-indigo-600 bg-indigo-50' : 'text-slate-500'
-            }`}
-          >
-            <Bot className="w-5 h-5 mb-0.5" />
-            <span>Bot Zalo/TG</span>
-          </button>
+        {/* Thanh điều hướng dưới (di động) */}
+        <nav style={{ gridTemplateColumns: `repeat(${visibleTabs.length}, minmax(0, 1fr))` }}
+          className="md:hidden glass fixed bottom-0 left-0 right-0 z-40 border-t border-slate-200/80 px-2 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] grid">
+          {visibleTabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex flex-col items-center justify-center gap-0.5 py-1 text-xs font-medium transition ${
+                activeTab === tab.id ? 'text-blue-600' : 'text-slate-500'
+              }`}
+            >
+              <tab.icon className="w-6 h-6" />
+              <span>{tab.short}</span>
+            </button>
+          ))}
         </nav>
       </div>
 
@@ -1501,9 +1482,17 @@ export function App() {
         onSave={handleSaveTrip}
         vehicles={tenantVehicles}
         drivers={tenantDrivers}
+        trips={db.trips.filter((t) => t.tenantId === activeTenant.id)}
+        journeyRoutes={(db.journeyRoutes || []).filter((r) => r.tenantId === activeTenant.id)}
         highwayPresets={db.highwayPresets}
         activeTenant={activeTenant}
         editingTrip={editingTrip}
+      />
+
+      <AddExpenseModal
+        trip={expenseTrip}
+        onClose={() => setExpenseTrip(null)}
+        onSubmit={handleDriverAddExpense}
       />
 
       {/* Modal Phiếu Lệnh Điều Xe & Copy Zalo */}
@@ -1525,7 +1514,7 @@ export function App() {
         onSwitchTenant={(tid) => {
           setDb((prev) => ({ ...prev, activeTenantId: tid }));
           setIsSaaSModalOpen(false);
-          showToast('🏢 Đã chuyển đổi sang dữ liệu của chi nhánh/doanh nghiệp được chọn!');
+          showToast('Đã chuyển đổi sang dữ liệu của chi nhánh/doanh nghiệp được chọn!');
         }}
         onCloneNewTenant={handleCloneNewTenant}
         onAddHighwayPreset={(presetData) => {
@@ -1537,7 +1526,7 @@ export function App() {
             ...prev,
             highwayPresets: [...prev.highwayPresets, newPreset],
           }));
-          showToast(`🛣️ Đã thêm tuyến định mức "${newPreset.name}"!`);
+          showToast(`Đã thêm tuyến định mức "${newPreset.name}"!`);
         }}
       />
 
@@ -1553,7 +1542,7 @@ export function App() {
               a.id === accId ? { ...a, status: 'APPROVED' } : a
             ),
           }));
-          showToast('✅ Đã xác nhận phê duyệt quyền đăng nhập cho tài khoản!');
+          showToast('Đã xác nhận phê duyệt quyền đăng nhập cho tài khoản!');
         }}
         onToggleLockAccount={(accId) => {
           setDb((prev) => ({
@@ -1564,14 +1553,14 @@ export function App() {
                 : a
             ),
           }));
-          showToast('🔒 Đã cập nhật trạng thái khóa tài khoản!');
+          showToast('Đã cập nhật trạng thái khóa tài khoản!');
         }}
         onDeleteAccount={(accId) => {
           setDb((prev) => ({
             ...prev,
             adminAccounts: (prev.adminAccounts || adminAccounts).filter((a) => a.id !== accId),
           }));
-          showToast('🗑️ Đã xóa tài khoản khỏi hệ thống!');
+          showToast('Đã xóa tài khoản khỏi hệ thống!');
         }}
         onUpdateAdminCredentials={(accId, newUsername, newPass) => {
           setDb((prev) => ({
@@ -1582,7 +1571,7 @@ export function App() {
                 : a
             ),
           }));
-          showToast(`🔑 Đã cập nhật User (@${newUsername}) & Mật khẩu Admin thành công!`);
+          showToast(`Đã cập nhật User (@${newUsername}) & Mật khẩu Admin thành công!`);
         }}
         onCreateApprovedAdmin={(newAcc) => {
           const created: AdminAccount = {
@@ -1594,16 +1583,16 @@ export function App() {
             ...prev,
             adminAccounts: [...(prev.adminAccounts || adminAccounts), created],
           }));
-          showToast(`✅ Đã cấp quyền đăng nhập cho @${created.username}!`);
+          showToast(`Đã cấp quyền đăng nhập cho @${created.username}!`);
         }}
         onSaveSupabaseCreds={async (url, anonKey) => {
           localStorage.setItem('LIUCAR_SUPABASE_URL', url.trim());
           localStorage.setItem('LIUCAR_SUPABASE_KEY', anonKey.trim());
           const ok = await saveToSupabase(db);
           if (ok) {
-            showToast('☁️ Đã kết nối và đẩy toàn bộ bảng dữ liệu lên Supabase thành công!');
+            showToast('Đã kết nối và đẩy toàn bộ bảng dữ liệu lên Supabase thành công!');
           } else {
-            showToast('⚠️ Đã lưu thông tin Supabase. Vui lòng kiểm tra lại URL & Anon Key!');
+            showToast('Đã lưu thông tin Supabase. Vui lòng kiểm tra lại URL & Anon Key!');
           }
         }}
       />

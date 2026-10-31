@@ -25,14 +25,14 @@ export const PrintableVoucherModal: React.FC<PrintableVoucherModalProps> = ({
   const fin = calculateTripFinancials(trip);
 
   const zaloFormattedText = [
-    `🚗 [LỆNH ĐIỀU XE & ĐỐI SOÁT #${trip.tripCode}] — ${tenant.shortName.toUpperCase()}`,
+    `[LỆNH ĐIỀU XE & ĐỐI SOÁT #${trip.tripCode}] — ${tenant.shortName.toUpperCase()}`,
     `━━━━━━━━━━━━━━━━━━━━━━━━`,
-    `👨‍✈️ Tài xế phụ trách: @${driver?.fullName || 'Tài xế'} (${driver?.phone || ''})`,
-    `🚘 Xe phục vụ: [${vehicle?.seatCategory || ''}] ${vehicle?.brand || ''} ${vehicle?.model || ''} — Biển số: ${vehicle?.plateNumber || ''}`,
-    `👤 Khách hàng: ${trip.customerName} (${trip.customerPhone})`,
-    `📅 Thời gian: ${trip.departureTime} - ${trip.returnTime} ngày ${trip.tripDate}`,
-    `📍 Lộ trình: ${trip.pickupLocation} ➔ ${trip.dropoffLocation} (${trip.distanceKm} km)`,
-    `🛣️ Tuyến đường: ${
+    `Tài xế phụ trách: @${driver?.fullName || 'Tài xế'} (${driver?.phone || ''})`,
+    `Xe phục vụ: [${vehicle?.seatCategory || ''}] ${vehicle?.brand || ''} ${vehicle?.model || ''} — Biển số: ${vehicle?.plateNumber || ''}`,
+    `Khách hàng: ${trip.customerName} (${trip.customerPhone})`,
+    `Thời gian: ${trip.departureTime} - ${trip.returnTime} ngày ${trip.tripDate}`,
+    `Lộ trình: ${trip.pickupLocation} → ${trip.dropoffLocation} (${trip.distanceKm} km)`,
+    `Tuyến đường: ${
       trip.routeType === 'HIGHWAY'
         ? 'Đi Cao Tốc (Có thu phí ETC)'
         : trip.routeType === 'NATIONAL_ROAD'
@@ -40,21 +40,21 @@ export const PrintableVoucherModal: React.FC<PrintableVoucherModalProps> = ({
         : 'Kết Hợp Cao Tốc & Quốc Lộ'
     } (${trip.routeDetail})`,
     `━━━━━━━━━━━━━━━━━━━━━━━━`,
-    `💰 1. Tổng thu chuyến (+): ${formatVND(fin.grossRevenue)} (${
+    `1. Tổng thu chuyến (+): ${formatVND(fin.grossRevenue)} (${
       trip.paymentCollectedBy === 'COMPANY_BANK' ? 'CK Công ty' : 'Tài xế thu tiền mặt'
     })`,
-    `➖ 2. Chi phí tự cấn trừ (-): -${formatVND(fin.totalAutoDeducted)} (Cao tốc: ${formatVND(
+    `2. Chi phí tự cấn trừ (-): -${formatVND(fin.totalAutoDeducted)} (Cao tốc: ${formatVND(
       trip.autoHighwayToll
     )} | Xăng: ${formatVND(trip.autoFuelQuota)} | ĐH: ${formatVND(trip.autoDispatchFee)})`,
-    `➖ 3. Chi phí nhập tay (-): -${formatVND(fin.totalManualExpense)}${
+    `3. Chi phí nhập tay (-): -${formatVND(fin.totalManualExpense)}${
       trip.manualExpenseNote ? ` (${trip.manualExpenseNote})` : ''
     }`,
-    `➖ 4. Phí đậu xe & Phạt GT (-): -${formatVND(fin.totalRiskExpense)} (Đậu xe: ${formatVND(
+    `4. Phí đậu xe & Phạt GT (-): -${formatVND(fin.totalRiskExpense)} (Đậu xe: ${formatVND(
       fin.parkingFee
     )} | Phạt: ${formatVND(fin.trafficFineFee)})`,
     `━━━━━━━━━━━━━━━━━━━━━━━━`,
-    `✅ SỐ THỰC TẾ CÒN LẠI VÀO TK: ${formatVND(fin.netRemainingToAccount)}`,
-    `👉 Đề nghị tài xế @${driver?.fullName || ''} thả tim hoặc nhắn "XÁC NHẬN" khi nhận lệnh!`,
+    `SỐ THỰC TẾ CÒN LẠI VÀO TK: ${formatVND(fin.netRemainingToAccount)}`,
+    `Đề nghị tài xế @${driver?.fullName || ''} thả tim hoặc nhắn "XÁC NHẬN" khi nhận lệnh!`,
   ].join('\n');
 
   const handleCopyZalo = async () => {
@@ -68,10 +68,10 @@ export const PrintableVoucherModal: React.FC<PrintableVoucherModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/75 backdrop-blur-sm p-3 sm:p-4 overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-md p-3 sm:p-4 overflow-y-auto">
       <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-2xl overflow-hidden">
         {/* Top Action Bar */}
-        <div className="bg-slate-900 text-white px-5 py-3.5 flex flex-wrap items-center justify-between gap-2 print:hidden">
+        <div className="bg-white text-slate-900 border-b border-slate-200 px-5 py-4 flex flex-wrap items-center justify-between gap-2 print:hidden">
           <h3 className="text-sm font-bold">
             Phiếu Lệnh Điều Xe & Quyết Toán Chuyến #{trip.tripCode}
           </h3>
@@ -90,12 +90,12 @@ export const PrintableVoucherModal: React.FC<PrintableVoucherModalProps> = ({
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition"
             >
               <Printer className="w-3.5 h-3.5" />
-              <span>In Phiếu / Xuất PDF</span>
+              <span>In phiếu / xuất PDF</span>
             </button>
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-white"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-900"
             >
               <X className="w-5 h-5" />
             </button>
@@ -106,7 +106,7 @@ export const PrintableVoucherModal: React.FC<PrintableVoucherModalProps> = ({
         <div className="p-6 space-y-5 text-xs text-slate-800">
           <div className="flex items-start justify-between border-b-2 border-slate-900 pb-4">
             <div>
-              <h2 className="text-base font-extrabold text-slate-900 uppercase">{tenant.name}</h2>
+              <h2 className="text-base font-extrabold text-slate-900 ">{tenant.name}</h2>
               <p className="text-slate-600">
                 MST: {tenant.taxCode} • Hotline: {tenant.hotline}
               </p>
@@ -121,7 +121,7 @@ export const PrintableVoucherModal: React.FC<PrintableVoucherModalProps> = ({
           </div>
 
           <div className="text-center">
-            <h1 className="text-lg font-extrabold text-slate-900 uppercase">
+            <h1 className="text-lg font-extrabold text-slate-900 ">
               {trip.bookingType === 'SELF_DRIVE'
                 ? 'PHIẾU GIAO NHẬN XE TỰ LÁI & QUYẾT TOÁN CHI PHÍ'
                 : 'LỆNH ĐIỀU XE & PHIẾU ĐỐI SOÁT DOANH THU - CHI PHÍ'}
@@ -131,7 +131,7 @@ export const PrintableVoucherModal: React.FC<PrintableVoucherModalProps> = ({
           {/* 2 Columns Info */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
             <div className="space-y-1.5">
-              <div className="font-bold text-slate-900 uppercase text-[11px] text-blue-700">
+              <div className="font-bold text-slate-900 text-xs text-blue-700">
                 I. Thông Tin Xe & Người Lái
               </div>
               <div>
@@ -156,16 +156,16 @@ export const PrintableVoucherModal: React.FC<PrintableVoucherModalProps> = ({
             </div>
 
             <div className="space-y-1.5">
-              <div className="font-bold text-slate-900 uppercase text-[11px] text-blue-700">
+              <div className="font-bold text-slate-900 text-xs text-blue-700">
                 II. Lịch Trình Di Chuyển (Cao tốc / Quốc lộ)
               </div>
               <div>
                 • Khách hàng: <strong>{trip.customerName}</strong> ({trip.customerPhone})
               </div>
               <div>
-                • Điểm đón ➔ trả:{' '}
+                • Điểm đón → trả:{' '}
                 <strong>
-                  {trip.pickupLocation} ➔ {trip.dropoffLocation}
+                  {trip.pickupLocation} → {trip.dropoffLocation}
                 </strong>
               </div>
               <div>
@@ -190,16 +190,16 @@ export const PrintableVoucherModal: React.FC<PrintableVoucherModalProps> = ({
           <div className="border border-slate-300 rounded-xl overflow-hidden">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-slate-900 text-white text-[11px] uppercase">
-                  <th className="py-2.5 px-4">Khoản Mục Đối Soát</th>
-                  <th className="py-2.5 px-4">Diễn Giải Chi Tiết</th>
-                  <th className="py-2.5 px-4 text-right">Số Tiền (VNĐ)</th>
+                <tr className="bg-slate-900 text-white text-xs ">
+                  <th className="py-2.5 px-4">Khoản mục đối soát</th>
+                  <th className="py-2.5 px-4">Diễn giải chi tiết</th>
+                  <th className="py-2.5 px-4 text-right">Số tiền (VNĐ)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
                 <tr>
                   <td className="py-2.5 px-4 font-bold text-emerald-800">
-                    1. Tổng Doanh Thu Chuyến (+)
+                    Tổng doanh thu chuyến (+)
                   </td>
                   <td className="py-2.5 px-4 text-slate-600">
                     Giá chuyến: {formatVND(trip.baseFareRevenue)} + Phụ thu:{' '}
@@ -216,7 +216,7 @@ export const PrintableVoucherModal: React.FC<PrintableVoucherModalProps> = ({
 
                 <tr>
                   <td className="py-2.5 px-4 font-bold text-amber-800">
-                    2. Chi Phí Tự Cấn Trừ (-)
+                    Chi phí tự cấn trừ (-)
                   </td>
                   <td className="py-2.5 px-4 text-slate-600">
                     Phí Cao tốc ETC: {formatVND(trip.autoHighwayToll)} | Định mức xăng:{' '}
@@ -229,7 +229,7 @@ export const PrintableVoucherModal: React.FC<PrintableVoucherModalProps> = ({
 
                 <tr>
                   <td className="py-2.5 px-4 font-bold text-orange-800">
-                    3. Chi Phí Nhập Tay (-)
+                    Chi phí nhập tay (-)
                   </td>
                   <td className="py-2.5 px-4 text-slate-600">
                     {trip.manualExpenseNote || 'Chi phí phát sinh nhập tay theo chuyến'}
@@ -241,7 +241,7 @@ export const PrintableVoucherModal: React.FC<PrintableVoucherModalProps> = ({
 
                 <tr>
                   <td className="py-2.5 px-4 font-bold text-blue-800">
-                    4. Chi Phí Đậu Xe / Bến Bãi (-)
+                    Chi phí đậu xe / bến bãi (-)
                   </td>
                   <td className="py-2.5 px-4 text-slate-600">
                     {trip.parkingNote || 'Vé đậu xe sân bay / bến bãi'}
@@ -253,7 +253,7 @@ export const PrintableVoucherModal: React.FC<PrintableVoucherModalProps> = ({
 
                 <tr>
                   <td className="py-2.5 px-4 font-bold text-rose-800">
-                    5. Chi Phí Phạt Giao Thông (-)
+                    Chi phí phạt giao thông (-)
                   </td>
                   <td className="py-2.5 px-4 text-slate-600">
                     {trip.trafficFineNote || 'Không phát sinh phạt vi phạm'}
@@ -278,18 +278,18 @@ export const PrintableVoucherModal: React.FC<PrintableVoucherModalProps> = ({
           {/* Preview Tin nhắn Zalo để Copy nhanh */}
           <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-200 print:hidden">
             <div className="flex items-center justify-between mb-1.5">
-              <span className="font-bold text-slate-700 text-[11px]">
-                📲 Mẫu tin nhắn chuẩn gửi Nhóm Zalo / Telegram cho Tài xế:
+              <span className="font-bold text-slate-700 text-xs">
+                Mẫu tin nhắn chuẩn gửi Nhóm Zalo / Telegram cho Tài xế:
               </span>
               <button
                 type="button"
                 onClick={handleCopyZalo}
-                className="text-blue-600 font-bold text-[11px] hover:underline"
+                className="text-blue-600 font-bold text-xs hover:underline"
               >
                 {copied ? '✓ Đã sao chép' : 'Sao chép nội dung'}
               </button>
             </div>
-            <pre className="text-[11px] text-slate-700 whitespace-pre-wrap font-mono bg-white p-3 rounded-lg border border-slate-200 max-h-36 overflow-y-auto">
+            <pre className="text-xs text-slate-700 whitespace-pre-wrap font-mono bg-white p-3 rounded-lg border border-slate-200 max-h-36 overflow-y-auto">
               {zaloFormattedText}
             </pre>
           </div>

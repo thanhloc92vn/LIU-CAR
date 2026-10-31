@@ -93,24 +93,24 @@ export const AdminSecurityModal: React.FC<AdminSecurityModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-3 sm:p-4 overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-md p-3 sm:p-4 overflow-y-auto">
       <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="bg-slate-900 text-white px-5 py-4 flex items-center justify-between">
+        <div className="bg-white text-slate-900 border-b border-slate-200 px-5 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center">
               <ShieldCheck className="w-5 h-5 text-emerald-400" />
             </div>
             <div>
               <h3 className="text-base font-bold flex items-center gap-2">
-                <span>Quản Trị Bảo Mật & Xác Nhận Đăng Nhập Admin</span>
+                <span>Quản trị bảo mật & xác nhận đăng nhập Admin</span>
                 {pendingCount > 0 && (
-                  <span className="px-2 py-0.5 rounded-full bg-rose-500 text-white text-[11px] font-extrabold">
+                  <span className="px-2 py-0.5 rounded-full bg-rose-500 text-white text-xs font-extrabold">
                     {pendingCount} chờ duyệt
                   </span>
                 )}
               </h3>
-              <p className="text-xs text-slate-300">
+              <p className="text-xs text-slate-500">
                 Phê duyệt nhân viên xin cấp quyền, đổi mật khẩu Admin & cấu hình đồng bộ đám mây Supabase
               </p>
             </div>
@@ -118,7 +118,7 @@ export const AdminSecurityModal: React.FC<AdminSecurityModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-2 rounded-lg text-slate-400 hover:text-white"
+            className="p-2 rounded-lg text-slate-400 hover:text-slate-900"
           >
             <X className="w-5 h-5" />
           </button>
@@ -129,13 +129,13 @@ export const AdminSecurityModal: React.FC<AdminSecurityModalProps> = ({
           <div className="bg-slate-900 text-white rounded-2xl p-4 space-y-3 border border-slate-800">
             <div className="font-extrabold text-sm flex items-center gap-2 text-blue-300">
               <Globe className="w-4 h-4 text-blue-400" />
-              <span>Cấu Hình 2 Đường Link Tách Biệt (Khách Đặt Xe & Quản Trị Riêng)</span>
+              <span>Cấu hình 2 đường link tách biệt (khách đặt xe & quản trị riêng)</span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {/* Public link */}
               <div className="bg-slate-800/90 rounded-xl p-3 border border-slate-700 space-y-1.5">
-                <div className="text-[11px] font-bold text-emerald-300">
-                  🌐 1. Link Web Công Khai Cho Khách Đặt Xe:
+                <div className="text-xs font-bold text-emerald-300">
+                  Link web công khai cho khách đặt xe:
                 </div>
                 <div className="font-mono text-xs text-white bg-slate-950 px-2.5 py-1.5 rounded-lg border border-slate-700 truncate">
                   {publicUrl}
@@ -144,7 +144,7 @@ export const AdminSecurityModal: React.FC<AdminSecurityModalProps> = ({
                   <button
                     type="button"
                     onClick={() => handleCopy(publicUrl, 'PUBLIC')}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] transition"
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition"
                   >
                     <Copy className="w-3 h-3" />
                     <span>{copiedLink === 'PUBLIC' ? 'Đã copy!' : 'Copy link gửi khách'}</span>
@@ -153,7 +153,7 @@ export const AdminSecurityModal: React.FC<AdminSecurityModalProps> = ({
                     href={publicUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold text-[11px] transition"
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold text-xs transition"
                   >
                     <ExternalLink className="w-3 h-3" />
                     <span>Mở trang khách</span>
@@ -163,8 +163,8 @@ export const AdminSecurityModal: React.FC<AdminSecurityModalProps> = ({
 
               {/* Private Admin Login link */}
               <div className="bg-slate-800/90 rounded-xl p-3 border border-blue-500/40 space-y-1.5">
-                <div className="text-[11px] font-bold text-amber-300">
-                  🔐 2. Link Đăng Nhập Quản Trị Riêng (Nội bộ):
+                <div className="text-xs font-bold text-amber-300">
+                  Link đăng nhập quản trị riêng (Nội bộ):
                 </div>
                 <div className="font-mono text-xs text-amber-200 bg-slate-950 px-2.5 py-1.5 rounded-lg border border-slate-700 truncate">
                   {adminLoginUrl}
@@ -173,12 +173,12 @@ export const AdminSecurityModal: React.FC<AdminSecurityModalProps> = ({
                   <button
                     type="button"
                     onClick={() => handleCopy(adminLoginUrl, 'ADMIN')}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] transition"
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs transition"
                   >
                     <Copy className="w-3 h-3" />
                     <span>{copiedLink === 'ADMIN' ? 'Đã copy!' : 'Copy link Admin'}</span>
                   </button>
-                  <span className="text-[10px] text-slate-400">
+                  <span className="text-xs text-slate-400">
                     (Hoặc vào <code className="text-slate-200">/quan-tri</code>,{' '}
                     <code className="text-slate-200">/login</code>)
                   </span>
@@ -191,7 +191,7 @@ export const AdminSecurityModal: React.FC<AdminSecurityModalProps> = ({
           <div className="space-y-3">
             <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
               <UserCheck className="w-4 h-4 text-blue-600" />
-              1. Danh Sách Tài Khoản Quản Trị & Xác Nhận Cho Phép Đăng Nhập ({adminAccounts.length})
+              Danh sách tài khoản quản trị & xác nhận cho phép đăng nhập ({adminAccounts.length})
             </h4>
 
             <div className="space-y-2.5">
@@ -209,18 +209,18 @@ export const AdminSecurityModal: React.FC<AdminSecurityModalProps> = ({
                   <div className="space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-extrabold text-sm text-slate-900">{acc.fullName}</span>
-                      <span className="px-2 py-0.5 rounded bg-slate-200 text-slate-800 font-mono font-bold text-[11px]">
+                      <span className="px-2 py-0.5 rounded bg-slate-200 text-slate-800 font-mono font-bold text-xs">
                         @{acc.username}
                       </span>
-                      <span className="px-2 py-0.5 rounded bg-blue-100 text-blue-800 font-bold text-[10px]">
+                      <span className="px-2 py-0.5 rounded bg-blue-100 text-blue-800 font-bold text-xs">
                         {acc.role === 'SUPER_ADMIN'
-                          ? '👑 Chủ Hệ Thống'
+                          ? 'Chủ Hệ Thống'
                           : acc.role === 'DISPATCHER'
-                          ? '🚗 Điều Hành Xe'
-                          : '💰 Kế Toán'}
+                          ? 'Điều Hành Xe'
+                          : 'Kế Toán'}
                       </span>
                       <span
-                        className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
+                        className={`px-2 py-0.5 rounded-full font-bold text-xs ${
                           acc.status === 'APPROVED'
                             ? 'bg-emerald-100 text-emerald-800'
                             : acc.status === 'PENDING_APPROVAL'
@@ -229,10 +229,10 @@ export const AdminSecurityModal: React.FC<AdminSecurityModalProps> = ({
                         }`}
                       >
                         {acc.status === 'APPROVED'
-                          ? '✅ Đã xác nhận cho phép'
+                          ? 'Đã xác nhận cho phép'
                           : acc.status === 'PENDING_APPROVAL'
-                          ? '⏳ Chờ Admin Xác Nhận'
-                          : '🔒 Đã khóa'}
+                          ? 'Chờ Admin Xác Nhận'
+                          : 'Đã khóa'}
                       </span>
                     </div>
                     <div className="text-slate-500">
@@ -286,7 +286,7 @@ export const AdminSecurityModal: React.FC<AdminSecurityModalProps> = ({
             <div className="bg-blue-50/70 rounded-xl p-4 border border-blue-200 space-y-2.5">
               <h4 className="font-bold text-blue-950 flex items-center gap-1.5 text-xs">
                 <KeyRound className="w-4 h-4 text-blue-600" />
-                2. Đổi User & Mật Khẩu Admin Chính ({mainAdmin?.username || 'admin'})
+                Đổi user & mật khẩu Admin chính ({mainAdmin?.username || 'admin'})
               </h4>
               <div className="grid grid-cols-2 gap-2">
                 <input
@@ -325,7 +325,7 @@ export const AdminSecurityModal: React.FC<AdminSecurityModalProps> = ({
             >
               <h4 className="font-bold text-slate-900 flex items-center gap-1.5 text-xs">
                 <UserPlus className="w-4 h-4 text-indigo-600" />
-                3. Cấp Nhanh Tài Khoản Điều Hành / Kế Toán
+                Cấp nhanh tài khoản điều hành / kế toán
               </h4>
               <div className="grid grid-cols-2 gap-2">
                 <input
@@ -366,14 +366,14 @@ export const AdminSecurityModal: React.FC<AdminSecurityModalProps> = ({
           <div className="bg-emerald-50/70 rounded-xl p-4 border border-emerald-200 space-y-3">
             <h4 className="text-xs font-bold text-emerald-950 flex items-center gap-1.5">
               <Cloud className="w-4 h-4 text-emerald-600" />
-              4. Kết Nối Trực Tiếp Cơ Sở Dữ Liệu Supabase Cloud (Đồng bộ Đa Thiết Bị)
+              Kết nối trực tiếp cơ sở dữ liệu Supabase cloud (Đồng bộ Đa Thiết Bị)
             </h4>
-            <p className="text-[11px] text-emerald-800">
+            <p className="text-xs text-emerald-800">
               Dán <strong>Project URL</strong> và <strong>anon / public key</strong> từ Supabase của bạn vào đây để lưu và đẩy toàn bộ dữ liệu Xe, Tài xế, Lịch trình lên các bảng Supabase ngay lập tức:
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                <label className="block text-xs font-bold text-slate-700 mb-1">
                   Supabase Project URL
                 </label>
                 <input
@@ -385,7 +385,7 @@ export const AdminSecurityModal: React.FC<AdminSecurityModalProps> = ({
                 />
               </div>
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                <label className="block text-xs font-bold text-slate-700 mb-1">
                   Supabase Anon / Public Key
                 </label>
                 <input
@@ -403,7 +403,7 @@ export const AdminSecurityModal: React.FC<AdminSecurityModalProps> = ({
                 onClick={() => onSaveSupabaseCreds(sbUrl, sbKey)}
                 className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition"
               >
-                ☁️ Lưu Kết Nối & Đẩy Dữ Liệu Lên Supabase Ngay
+                Lưu Kết Nối & Đẩy Dữ Liệu Lên Supabase Ngay
               </button>
             </div>
           </div>
