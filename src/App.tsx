@@ -11,10 +11,13 @@ import {
   LogOut,
   MapPin,
   Plus,
+  Printer,
+  RefreshCw,
   ShieldCheck,
   Signal,
   Smartphone,
   Sparkles,
+  Trash2,
   UserCheck,
   Users,
   Wallet,
@@ -47,6 +50,7 @@ import { AIBotZaloTelegramTab } from './components/AIBotZaloTelegramTab';
 import { MultiTenantSaaSModal } from './components/MultiTenantSaaSModal';
 import { AuthLoginGate } from './components/AuthLoginGate';
 import { AdminSecurityModal } from './components/AdminSecurityModal';
+import { PrintableVoucherModal } from './components/PrintableVoucherModal';
 
 type ActiveTab = 'BOOKINGS' | 'FINANCE' | 'FLEET_DRIVERS' | 'AI_BOT';
 
@@ -82,6 +86,7 @@ export function App() {
   // Modals
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
+  const [voucherTrip, setVoucherTrip] = useState<Trip | null>(null);
   const [isSaaSModalOpen, setIsSaaSModalOpen] = useState(false);
   const [isSecurityModalOpen, setIsSecurityModalOpen] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
@@ -1036,6 +1041,15 @@ export function App() {
                           </span>
                           <button
                             type="button"
+                            onClick={() => setVoucherTrip(trip)}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-[10px] font-bold transition"
+                            title="In phiếu lệnh điều xe / Copy gửi nhóm Zalo"
+                          >
+                            <Printer className="w-3.5 h-3.5" />
+                            <span>Phiếu / Zalo</span>
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => {
                               setEditingTrip(trip);
                               setIsBookingModalOpen(true);
@@ -1045,6 +1059,22 @@ export function App() {
                           >
                             <Edit3 className="w-3.5 h-3.5" />
                           </button>
+                          {authSession.role === 'ADMIN' && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDb((prev) => ({
+                                  ...prev,
+                                  trips: prev.trips.filter((t) => t.id !== trip.id),
+                                }));
+                                showToast(`🗑️ Đã xóa chuyến #${trip.tripCode}!`);
+                              }}
+                              className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 transition"
+                              title="Xóa chuyến đi"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                       </div>
 
@@ -1248,7 +1278,39 @@ export function App() {
               activeTenantId={activeTenant.id}
               isMobile={isMobileLayout}
               onAddVehicle={handleAddVehicle}
+              onUpdateVehicle={(updatedVeh) => {
+                setDb((prev) => ({
+                  ...prev,
+                  vehicles: prev.vehicles.map((v) =>
+                    v.id === updatedVeh.id ? updatedVeh : v
+                  ),
+                }));
+                showToast(`✅ Đã cập nhật thông tin xe ${updatedVeh.plateNumber}!`);
+              }}
+              onDeleteVehicle={(vehId) => {
+                setDb((prev) => ({
+                  ...prev,
+                  vehicles: prev.vehicles.filter((v) => v.id !== vehId),
+                }));
+                showToast('🗑️ Đã xóa xe khỏi danh sách!');
+              }}
               onAddDriver={handleAddDriver}
+              onUpdateDriver={(updatedDrv) => {
+                setDb((prev) => ({
+                  ...prev,
+                  drivers: prev.drivers.map((d) =>
+                    d.id === updatedDrv.id ? updatedDrv : d
+                  ),
+                }));
+                showToast(`✅ Đã cập nhật hồ sơ tài xế ${updatedDrv.fullName}!`);
+              }}
+              onDeleteDriver={(drvId) => {
+                setDb((prev) => ({
+                  ...prev,
+                  drivers: prev.drivers.filter((d) => d.id !== drvId),
+                }));
+                showToast('🗑️ Đã xóa hồ sơ tài xế!');
+              }}
             />
           )}
 
@@ -1345,6 +1407,15 @@ export function App() {
         highwayPresets={db.highwayPresets}
         activeTenant={activeTenant}
         editingTrip={editingTrip}
+      />
+
+      {/* Modal Phiếu Lệnh Điều Xe & Copy Zalo */}
+      <PrintableVoucherModal
+        trip={voucherTrip}
+        onClose={() => setVoucherTrip(null)}
+        driver={tenantDrivers.find((d) => d.id === voucherTrip?.driverId)}
+        vehicle={tenantVehicles.find((v) => v.id === voucherTrip?.vehicleId)}
+        tenant={activeTenant}
       />
 
       {/* Modal Nhân bản Doanh nghiệp (Multi-Tenant SaaS) */}
