@@ -227,10 +227,11 @@ export function App() {
     const all = db.trips.filter((t) => t.tenantId === activeTenant.id);
     // If logged in as a DRIVER, restrict to only their assigned or tagged trips
     if (authSession?.role === 'DRIVER' && authSession.driverId) {
+      const drvId = authSession.driverId;
       return all.filter(
         (t) =>
-          t.driverId === authSession.driverId ||
-          t.taggedDriverIds?.includes(authSession.driverId)
+          t.driverId === drvId ||
+          t.taggedDriverIds?.includes(drvId)
       );
     }
     return all;
