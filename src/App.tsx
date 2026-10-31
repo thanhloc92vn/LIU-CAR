@@ -63,6 +63,53 @@ const NAV_TABS: { id: ActiveTab; label: string; short: string; icon: React.Eleme
   { id: 'AI_BOT', label: 'Bot Zalo / Telegram', short: 'Bot', icon: Bot },
 ];
 
+// Dải trạng thái chuyến: Đã xác nhận, Đang chạy, Hoàn thành. Bước đã qua màu nhạt, bước hiện tại màu đậm.
+const TRIP_STEPS: { status: Trip['status']; label: string }[] = [
+  { status: 'CONFIRMED', label: 'Đã xác nhận' },
+  { status: 'IN_PROGRESS', label: 'Đang chạy' },
+  { status: 'COMPLETED', label: 'Hoàn thành' },
+];
+const TRIP_ORDER: Trip['status'][] = ['PENDING_CONFIRM', 'CONFIRMED', 'IN_PROGRESS', 'COMPLETED'];
+
+function TripStatusSteps({ status }: { status: Trip['status'] }) {
+  if (status === 'CANCELLED') {
+    return (
+      <span className="inline-flex h-8 items-center px-3.5 rounded-full bg-slate-100 text-slate-500 text-xs font-medium">
+        Đã hủy
+      </span>
+    );
+  }
+  const current = TRIP_ORDER.indexOf(status);
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {TRIP_STEPS.map((step) => {
+        const idx = TRIP_ORDER.indexOf(step.status);
+        const state = current > idx ? 'done' : current === idx ? 'current' : 'todo';
+        const strong =
+          step.status === 'COMPLETED' ? 'bg-emerald-600 text-white' : 'bg-blue-600 text-white';
+        return (
+          <span
+            key={step.status}
+            className={`inline-flex h-8 items-center gap-1.5 px-3.5 rounded-full text-xs font-medium ${
+              state === 'current'
+                ? strong
+                : state === 'done'
+                ? 'bg-emerald-50 text-emerald-700'
+                : 'bg-slate-100 text-slate-400'
+            }`}
+          >
+            {state === 'done' && <span aria-hidden>✓</span>}
+            {state === 'current' && step.status === 'IN_PROGRESS' && (
+              <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" aria-hidden />
+            )}
+            {step.label}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
 function checkIsAdminUrl(): boolean {
   if (typeof window === 'undefined') return false;
   const path = window.location.pathname.toLowerCase();
@@ -373,6 +420,11 @@ export function App() {
   // Báo chuyến vào nhóm Telegram qua máy chủ (token không nằm ở trình duyệt).
   // Đợi vài giây để chuyến kịp lưu lên Supabase, thử lại một lần nếu máy chủ chưa thấy chuyến.
   const sendTripToTelegram = (tripId: string, tripCode: string, manual = false) => {
+    // Chạy trên máy (localhost) không có máy chủ bot nên không báo lỗi mỗi lần tạo chuyến
+    const isLocal = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+    const warn = (msg: string) => {
+      if (manual || !isLocal) showToast(msg);
+    };
     const attempt = async (retry: boolean) => {
       try {
         const res = await fetch('/api/telegram-notify-trip', {
@@ -386,15 +438,13 @@ export function App() {
           showToast(`Đã báo chuyến #${tripCode} vào nhóm Telegram`);
         } else if (res.status === 404 && retry) {
           setTimeout(() => attempt(false), 4000);
-        } else if (manual) {
-          showToast(
-            res.status === 503
-              ? 'Bot Telegram chưa được cấu hình trên máy chủ'
-              : 'Chưa gửi được vào Telegram, thử lại sau ít phút'
-          );
+        } else if (res.status === 503) {
+          warn('Bot Telegram chưa được cấu hình trên máy chủ (thiếu biến môi trường trên Vercel)');
+        } else {
+          warn(`Chưa báo được chuyến #${tripCode} vào Telegram. Bấm "Gửi Telegram" trên thẻ chuyến để gửi lại.`);
         }
       } catch {
-        if (manual) showToast('Không kết nối được máy chủ bot (bản chạy trên máy chưa có chức năng này)');
+        warn(`Không kết nối được máy chủ bot. Bấm "Gửi Telegram" trên thẻ chuyến để gửi lại.`);
       }
     };
     setTimeout(() => attempt(true), manual ? 0 : 3500);
@@ -1118,7 +1168,7 @@ export function App() {
                             <button
                               type="button"
                               onClick={() => sendTripToTelegram(trip.id, trip.tripCode, true)}
-                              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium transition"
+                              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium transition"
                               title="Gửi (lại) chuyến này vào nhóm Telegram"
                             >
                               <Bot className="w-3.5 h-3.5" />
@@ -1209,9 +1259,18 @@ export function App() {
                         </div>
 
                         {trip.bookingType === 'SELF_DRIVE' ? (
-                          <div className="md:border-l md:border-slate-200 md:pl-4 text-slate-600 flex items-start gap-1.5">
-                            <UserCheck className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" />
-                            <span>Khách tự lái, không gán tài xế</span>
+                          <div className="md:border-l md:border-slate-200 md:pl-4 space-y-2">
+                            <div className="text-slate-600 flex items-start gap-1.5">
+                              <UserCheck className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" />
+                              <span>Khách tự lái, không gán tài xế</span>
+                            </div>
+                            {trip.status === 'PENDING_CONFIRM' ? (
+                              <span className="inline-flex h-8 items-center px-3.5 rounded-full bg-amber-100 text-amber-700 text-xs font-medium">
+                                Chờ chủ xe / điều hành xác nhận
+                              </span>
+                            ) : (
+                              <TripStatusSteps status={trip.status} />
+                            )}
                           </div>
                         ) : (
                         <div className="space-y-1.5 md:border-l md:border-slate-200 md:pl-4">
@@ -1236,17 +1295,25 @@ export function App() {
                               </span>
                             ))}
                           </div>
-                          {trip.status === 'PENDING_CONFIRM' && canActWithDriver && (
-                            <div className="pt-1">
-                              <button
-                                type="button"
-                                onClick={() => handleDriverConfirmTrip(trip.id, 'APP')}
-                                className="h-8 px-4 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium transition"
-                              >
-                                Xác nhận nhận chuyến
-                              </button>
-                            </div>
-                          )}
+                          <div className="pt-1">
+                            {trip.status === 'PENDING_CONFIRM' ? (
+                              canActWithDriver ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDriverConfirmTrip(trip.id, 'APP')}
+                                  className="h-8 px-4 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium transition"
+                                >
+                                  Xác nhận nhận chuyến
+                                </button>
+                              ) : (
+                                <span className="inline-flex h-8 items-center px-3.5 rounded-full bg-amber-100 text-amber-700 text-xs font-medium">
+                                  Chờ tài xế xác nhận
+                                </span>
+                              )
+                            ) : (
+                              <TripStatusSteps status={trip.status} />
+                            )}
+                          </div>
                         </div>
                         )}
                       </div>
