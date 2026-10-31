@@ -2,24 +2,12 @@
 // Chỉ nhận mã chuyến; nội dung tin được dựng ở máy chủ từ dữ liệu đã lưu, nên không ai gửi được chữ tùy ý vào nhóm.
 // Biến môi trường: TELEGRAM_BOT_TOKEN, TELEGRAM_DISPATCH_CHAT_ID (và tùy chọn SUPABASE_URL, SUPABASE_ANON_KEY).
 
-const DEFAULT_SUPABASE_URL = 'https://bxlonbaitqfpwcblzzpw.supabase.co';
-const DEFAULT_SUPABASE_KEY = 'sb_publishable_hx8j9L2F_gBIQzrPcWOZxA_yyy5qGPo';
+import { getLinkByDriver, loadState, sendMessage } from './_shared.js';
 
 // Chống bấm lặp: cùng một chuyến không gửi lại trong 30 giây (theo từng máy chủ đang chạy)
 const recent = new Map();
 
 const ROUTE_LABELS = { HIGHWAY: 'Cao tốc', NATIONAL_ROAD: 'Quốc lộ', MIXED: 'Cao tốc + quốc lộ' };
-
-async function loadState() {
-  const url = (process.env.SUPABASE_URL || DEFAULT_SUPABASE_URL).replace(/\/$/, '');
-  const key = process.env.SUPABASE_ANON_KEY || DEFAULT_SUPABASE_KEY;
-  const res = await fetch(`${url}/rest/v1/fleet_state?id=eq.MAIN_STATE&select=payload`, {
-    headers: { apikey: key, Authorization: `Bearer ${key}` },
-  });
-  if (!res.ok) return null;
-  const rows = await res.json();
-  return rows?.[0]?.payload || null;
-}
 
 function buildMessage(trip, vehicle, driver) {
   const selfDrive = trip.bookingType === 'SELF_DRIVE';
@@ -66,12 +54,21 @@ export default async function handler(req, res) {
     const vehicle = state.vehicles?.find((v) => v.id === trip.vehicleId);
     const driver = state.drivers?.find((d) => d.id === trip.driverId);
 
-    const tg = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, text: buildMessage(trip, vehicle, driver) }),
-    });
-    if (!tg.ok) return res.status(502).json({ error: 'telegram_failed' });
+    const text = buildMessage(trip, vehicle, driver);
+    const sent = await sendMessage(token, chatId, text);
+    if (!sent) return res.status(502).json({ error: 'telegram_failed' });
+
+    // Nhắn riêng cho tài xế nếu đã liên kết Telegram (lỗi ở bước này không ảnh hưởng kết quả chung)
+    if (driver) {
+      try {
+        const link = await getLinkByDriver(driver.id);
+        if (link?.chat_id) await sendMessage(token, link.chat_id, `Bạn có lịch chạy mới.
+
+${text}`);
+      } catch {
+        // bỏ qua
+      }
+    }
 
     recent.set(tripId, Date.now());
     return res.status(200).json({ ok: true });

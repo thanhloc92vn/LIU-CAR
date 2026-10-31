@@ -81,6 +81,7 @@ export interface Driver {
   bankAccount: string;
   telegramUsername: string; // VD: @taixe_minh
   zaloPhone: string;
+  telegramLinkCode?: string; // Mã 6 số admin cấp để tài xế liên kết bot Telegram (gõ /start <mã>)
   partyType?: 'EXTERNAL_DRIVER' | 'VEHICLE_OWNER'; // Tài xế ngoài (mặc định) hoặc Chủ xe
   ownedPlateNumbers?: string[]; // Các biển số xe của chủ xe, đối chiếu với danh mục xe
   ownedPlateNumber?: string; // (cũ) một biển số, vẫn đọc được để tương thích dữ liệu đã lưu

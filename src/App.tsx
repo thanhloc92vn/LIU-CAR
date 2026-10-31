@@ -38,6 +38,7 @@ import {
   saveToSupabase,
 } from './services/supabaseClient';
 import { calculateTripFinancials, formatVND } from './utils/calculations';
+import { getSupabaseCredentials } from './services/supabaseClient';
 import { buildBotDispatchMessage } from './utils/aiBotEngine';
 import { ownsVehicle } from './utils/party';
 import { BookingModal } from './components/BookingModal';
@@ -159,6 +160,8 @@ export function App() {
   const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
   const [voucherTrip, setVoucherTrip] = useState<Trip | null>(null);
   const [expenseTrip, setExpenseTrip] = useState<Trip | null>(null);
+  // Tài xế đã liên kết bot Telegram (đọc từ bảng telegram_links, do bot ghi)
+  const [telegramLinks, setTelegramLinks] = useState<Record<string, string>>({});
   const [isSaaSModalOpen, setIsSaaSModalOpen] = useState(false);
   const [isSecurityModalOpen, setIsSecurityModalOpen] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
@@ -292,6 +295,20 @@ export function App() {
       body: JSON.stringify(db),
     }).catch(() => {});
   }, [db, isLoaded]);
+
+  useEffect(() => {
+    if (!isLoaded || authSession?.role !== 'ADMIN') return;
+    const { url, anonKey } = getSupabaseCredentials();
+    if (!url || !anonKey) return;
+    fetch(`${url}/rest/v1/telegram_links?select=driver_id,linked_at`, {
+      headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` },
+    })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows: { driver_id: string; linked_at: string }[]) =>
+        setTelegramLinks(Object.fromEntries(rows.map((x) => [x.driver_id, x.linked_at])))
+      )
+      .catch(() => {});
+  }, [isLoaded, authSession?.role, activeTab]);
 
   const adminAccounts: AdminAccount[] = useMemo(
     () => db.adminAccounts || initialFleetDatabase.adminAccounts || [],
@@ -1519,6 +1536,7 @@ export function App() {
               trips={tenantTrips}
               activeTenantId={activeTenant.id}
               isMobile={isMobileLayout}
+              telegramLinks={telegramLinks}
               onAddVehicle={handleAddVehicle}
               onUpdateVehicle={(updatedVeh) => {
                 setDb((prev) => ({
