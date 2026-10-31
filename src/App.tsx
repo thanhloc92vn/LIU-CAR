@@ -49,6 +49,7 @@ import { MultiTenantSaaSModal } from './components/MultiTenantSaaSModal';
 import { AuthLoginGate } from './components/AuthLoginGate';
 import { AdminSecurityModal } from './components/AdminSecurityModal';
 import { AddExpenseModal, EXPENSE_LABELS, ExpenseKind } from './components/AddExpenseModal';
+import { useConfirm } from './components/ConfirmDialog';
 import { DriverEarningsTab } from './components/DriverEarningsTab';
 import { PrintableVoucherModal } from './components/PrintableVoucherModal';
 import { PublicCustomerBookingPortal } from './components/PublicCustomerBookingPortal';
@@ -124,6 +125,7 @@ function checkIsAdminUrl(): boolean {
 }
 
 export function App() {
+  const confirm = useConfirm();
   const [db, setDb] = useState<FleetDatabase>(initialFleetDatabase);
   const [isLoaded, setIsLoaded] = useState<boolean>(false);
   const [isAdminRoute, setIsAdminRoute] = useState<boolean>(checkIsAdminUrl);
@@ -1204,8 +1206,14 @@ export function App() {
                           {authSession.role === 'ADMIN' && (
                             <button
                               type="button"
-                              onClick={() => {
-                                if (!window.confirm(`Xóa chuyến #${trip.tripCode}? Thao tác này không hoàn tác được.`)) return;
+                              onClick={async () => {
+                                const ok = await confirm({
+                                  title: `Xóa chuyến #${trip.tripCode}?`,
+                                  message: 'Thao tác này không hoàn tác được.',
+                                  confirmLabel: 'Xóa chuyến',
+                                  tone: 'danger',
+                                });
+                                if (!ok) return;
                                 setDb((prev) => ({
                                   ...prev,
                                   trips: prev.trips.filter((t) => t.id !== trip.id),
@@ -1355,9 +1363,14 @@ export function App() {
                                   {trip.status === 'IN_PROGRESS' && (
                                     <button
                                       type="button"
-                                      onClick={() => {
-                                        if (window.confirm(`Xác nhận nhận lại xe và hoàn thành chuyến #${trip.tripCode}? Doanh thu sẽ được ghi nhận.`))
-                                          handleUpdateTripStatus(trip.id, 'COMPLETED');
+                                      onClick={async () => {
+                                        const ok = await confirm({
+                                          title: `Hoàn thành chuyến #${trip.tripCode}?`,
+                                          message: 'Xác nhận đã nhận lại xe. Doanh thu và chi phí sẽ được ghi nhận.',
+                                          confirmLabel: 'Hoàn thành',
+                                          tone: 'success',
+                                        });
+                                        if (ok) handleUpdateTripStatus(trip.id, 'COMPLETED');
                                       }}
                                       className="h-8 px-3.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium transition"
                                     >
@@ -1381,9 +1394,14 @@ export function App() {
                                   {(trip.status === 'CONFIRMED' || trip.status === 'IN_PROGRESS') && (
                                     <button
                                       type="button"
-                                      onClick={() => {
-                                        if (window.confirm(`Xác nhận hoàn thành chuyến #${trip.tripCode}? Doanh thu và chi phí sẽ được ghi nhận.`))
-                                          handleUpdateTripStatus(trip.id, 'COMPLETED');
+                                      onClick={async () => {
+                                        const ok = await confirm({
+                                          title: `Hoàn thành chuyến #${trip.tripCode}?`,
+                                          message: 'Doanh thu và chi phí của chuyến sẽ được ghi nhận vào hệ thống.',
+                                          confirmLabel: 'Hoàn thành',
+                                          tone: 'success',
+                                        });
+                                        if (ok) handleUpdateTripStatus(trip.id, 'COMPLETED');
                                       }}
                                       className="h-8 px-3.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium transition"
                                     >

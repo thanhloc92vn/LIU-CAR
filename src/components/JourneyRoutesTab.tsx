@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ArrowRight, Edit3, MapPin, Plus, Trash2, X } from 'lucide-react';
 import { JourneyPricing, JourneyRoute, JourneyService, RouteType } from '../types/fleet';
 import { formatVND } from '../utils/calculations';
+import { useConfirm } from './ConfirmDialog';
 import { DEFAULT_BATTERY_RATE_PER_KM, EMPTY_PRICING, getJourneyPricing } from '../utils/journey';
 
 interface JourneyRoutesTabProps {
@@ -228,6 +229,7 @@ export const JourneyRoutesTab: React.FC<JourneyRoutesTabProps> = ({
   onSave,
   onDelete,
 }) => {
+  const confirm = useConfirm();
   const [form, setForm] = useState<FormState | null>(null);
   const [formDay, setFormDay] = useState<DayType>('NORMAL');
   const [editingId, setEditingId] = useState<string | undefined>();
@@ -360,8 +362,14 @@ export const JourneyRoutesTab: React.FC<JourneyRoutesTabProps> = ({
               route={r}
               canEdit={canEdit}
               onEdit={() => openEdit(r)}
-              onDelete={() => {
-                if (window.confirm(`Xóa hành trình ${r.pointA} → ${r.pointB}?`)) onDelete(r.id);
+              onDelete={async () => {
+                const ok = await confirm({
+                  title: `Xóa hành trình ${r.pointA} → ${r.pointB}?`,
+                  message: 'Các chuyến đã đặt không bị ảnh hưởng.',
+                  confirmLabel: 'Xóa hành trình',
+                  tone: 'danger',
+                });
+                if (ok) onDelete(r.id);
               }}
             />
           ))}
