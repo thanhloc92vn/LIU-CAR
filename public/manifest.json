@@ -1,6 +1,6 @@
 {
-  "name": "SmartFleet Pro - Quản lý Xe Tự Lái & Điều Phối Vận Tải",
-  "short_name": "SmartFleet",
+  "name": "Haydixe - Quản lý xe tự lái & điều phối vận tải",
+  "short_name": "Haydixe",
   "description": "Phần mềm quản lý đặt lịch xe tự lái, hồ sơ tài xế, đối soát chi phí tự cấn trừ và AI Bot Zalo/Telegram",
   "start_url": "/",
   "display": "standalone",

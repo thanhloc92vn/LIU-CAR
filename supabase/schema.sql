@@ -1,5 +1,5 @@
 -- ============================================================================
--- LIU-CAR (SmartFleet Pro) — Full Supabase PostgreSQL Schema
+-- Haydixe — Full Supabase PostgreSQL Schema
 -- Copy toàn bộ nội dung này dán vào: Supabase -> SQL Editor -> Bấm "Run"
 -- ============================================================================
 
