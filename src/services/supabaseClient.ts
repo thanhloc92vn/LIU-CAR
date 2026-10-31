@@ -1,6 +1,10 @@
 import { FleetDatabase } from '../types/fleet';
 import { calculateTripFinancials } from '../utils/calculations';
 
+const DEFAULT_SUPABASE_URL = 'https://bxlonbaitqfpwcblzzpw.supabase.co';
+const DEFAULT_SUPABASE_PUBLISHABLE_KEY =
+  'sb_publishable_hx8j9L2F_gBIQzrPcWOZxA_yyy5qGPo';
+
 const ENV_URL = (import.meta as any).env?.VITE_SUPABASE_URL || '';
 const ENV_KEY = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || '';
 
@@ -10,8 +14,8 @@ export function getSupabaseCredentials(): { url: string; anonKey: string } {
   const savedKey =
     typeof window !== 'undefined' ? localStorage.getItem('LIUCAR_SUPABASE_KEY') || '' : '';
   return {
-    url: (ENV_URL || savedUrl).trim().replace(/\/$/, ''),
-    anonKey: (ENV_KEY || savedKey).trim(),
+    url: (ENV_URL || savedUrl || DEFAULT_SUPABASE_URL).trim().replace(/\/$/, ''),
+    anonKey: (ENV_KEY || savedKey || DEFAULT_SUPABASE_PUBLISHABLE_KEY).trim(),
   };
 }
 
@@ -102,7 +106,7 @@ export async function saveToSupabase(db: FleetDatabase): Promise<boolean> {
       }),
     });
 
-    // 2. Also sync relational tables (tenants, vehicles, drivers, trips) so Supabase Table Editor shows structured rows
+    // 2. Sync relational tables (tenants, vehicles, drivers, trips) so Supabase Table Editor shows structured rows
     if (db.tenants?.length) {
       await fetch(`${url}/rest/v1/tenants`, {
         method: 'POST',
