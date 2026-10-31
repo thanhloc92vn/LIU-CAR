@@ -5,6 +5,7 @@ export interface TripFinancialBreakdown {
   batteryFee: number;             // Tiền pin thu khách thuê tự lái xe điện (km thực tế x đơn giá)
   totalAutoDeducted: number;      // Tổng chi phí tự cấn trừ (Phí Cao tốc + Định mức nhiên liệu + Phí điều hành)
   totalManualExpense: number;     // Tổng chi phí nhập tay (gồm tiền tài xế + khách sạn)
+  manualExpenseOnly: number;      // Chỉ phần chi phí nhập tay (không gồm tiền tài xế, khách sạn)
   driverPay: number;              // Tiền tài xế (đã nằm trong totalManualExpense)
   hotelFee: number;               // Tiền khách sạn (đã nằm trong totalManualExpense)
   totalRiskExpense: number;       // Tổng chi phí phát sinh rủi ro (Phạt giao thông + Đậu xe + Sự cố khác)
@@ -27,7 +28,8 @@ export function calculateTripFinancials(trip: Trip): TripFinancialBreakdown {
 
   const driverPay = Number(trip.driverPay) || 0;
   const hotelFee = Number(trip.hotelFee) || 0;
-  const totalManualExpense = (Number(trip.manualExpenseTotal) || 0) + driverPay + hotelFee;
+  const manualExpenseOnly = Number(trip.manualExpenseTotal) || 0;
+  const totalManualExpense = manualExpenseOnly + driverPay + hotelFee;
 
   const parkingFee = Number(trip.parkingFee) || 0;
   const trafficFineFee = Number(trip.trafficFineFee) || 0;
@@ -42,6 +44,7 @@ export function calculateTripFinancials(trip: Trip): TripFinancialBreakdown {
     batteryFee,
     totalAutoDeducted,
     totalManualExpense,
+    manualExpenseOnly,
     driverPay,
     hotelFee,
     totalRiskExpense,

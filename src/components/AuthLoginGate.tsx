@@ -43,6 +43,10 @@ export const AuthLoginGate: React.FC<AuthLoginGateProps> = ({
   // Driver login state
   const [selectedDriverPhone, setSelectedDriverPhone] = useState(drivers[0]?.phone || '');
   const [driverPin, setDriverPin] = useState('');
+  // Danh sách tài xế tải sau lần hiển thị đầu; nếu giá trị đã chọn không còn trong danh sách thì dùng tài xế đầu tiên
+  const driverChoice = drivers.some((d) => d.phone === selectedDriverPhone)
+    ? selectedDriverPhone
+    : drivers[0]?.phone || '';
 
   // Request new staff/admin account state
   const [reqFullName, setReqFullName] = useState('');
@@ -128,8 +132,8 @@ export const AuthLoginGate: React.FC<AuthLoginGateProps> = ({
 
     const drv = drivers.find(
       (d) =>
-        d.phone === selectedDriverPhone.trim() ||
-        d.code.toLowerCase() === selectedDriverPhone.trim().toLowerCase()
+        d.phone === driverChoice.trim() ||
+        d.code.toLowerCase() === driverChoice.trim().toLowerCase()
     );
 
     if (!drv) {
@@ -347,7 +351,7 @@ export const AuthLoginGate: React.FC<AuthLoginGateProps> = ({
                   Chọn Tài Xế / Nhập Số Điện Thoại *
                 </label>
                 <select
-                  value={selectedDriverPhone}
+                  value={driverChoice}
                   onChange={(e) => setSelectedDriverPhone(e.target.value)}
                   className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-900"
                 >

@@ -1439,40 +1439,69 @@ export const BookingModal: React.FC<BookingModalProps> = ({
             </div>
           </div>
 
-          {/* Thanh Tổng Kết Đối Soát Tự Động (Real-time Net Remaining Banner) */}
-          <div className="bg-slate-900 text-white rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs w-full sm:w-auto">
-              <div>
-                <div className="text-slate-400">Tổng doanh thu (+)</div>
-                <div className="font-bold text-emerald-400 text-sm">
-                  {formatVND(liveBreakdown.grossRevenue)}
+          {/* Bảng kê đối soát theo thời gian thực: từng khoản thu và chi được tách riêng */}
+          <div className="rounded-xl border border-slate-200 overflow-hidden">
+            <div className="px-4 py-2.5 bg-slate-50 text-sm font-semibold text-slate-800">
+              Bảng kê đối soát chuyến
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-slate-200 text-sm">
+              <div className="bg-white p-4 space-y-1.5">
+                <div className="text-xs font-semibold text-emerald-700 mb-1">Thu (+)</div>
+                {(
+                  [
+                    ['Tiền theo chuyến', Number(baseFareRevenue) || 0, true],
+                    ['Phụ thu', Number(surchargeRevenue) || 0, true],
+                    ['Tiền pin (xe điện, theo km thực tế)', liveBreakdown.batteryFee, showBattery],
+                  ] as [string, number, boolean][]
+                )
+                  .filter(([, , show]) => show)
+                  .map(([label, value]) => (
+                    <div key={label} className="flex justify-between gap-3">
+                      <span className="text-slate-600">{label}</span>
+                      <span className={value ? 'font-medium text-slate-900' : 'text-slate-400'}>
+                        {formatVND(value)}
+                      </span>
+                    </div>
+                  ))}
+                <div className="flex justify-between gap-3 pt-2 mt-1 border-t border-slate-100 font-semibold">
+                  <span>Tổng doanh thu</span>
+                  <span className="text-emerald-700">{formatVND(liveBreakdown.grossRevenue)}</span>
                 </div>
               </div>
-              <div>
-                <div className="text-slate-400">Tự cấn trừ (-)</div>
-                <div className="font-bold text-amber-300 text-sm">
-                  -{formatVND(liveBreakdown.totalAutoDeducted)}
-                </div>
-              </div>
-              <div>
-                <div className="text-slate-400">Chi phí nhập tay (-)</div>
-                <div className="font-bold text-orange-300 text-sm">
-                  -{formatVND(liveBreakdown.totalManualExpense)}
-                </div>
-              </div>
-              <div>
-                <div className="text-slate-400">Phạt & đậu xe (-)</div>
-                <div className="font-bold text-rose-400 text-sm">
-                  -{formatVND(liveBreakdown.totalRiskExpense)}
+
+              <div className="bg-white p-4 space-y-1.5">
+                <div className="text-xs font-semibold text-rose-700 mb-1">Chi (-)</div>
+                {(
+                  [
+                    ['Cấn trừ: phí cao tốc / ETC', Number(autoHighwayToll) || 0, true],
+                    ['Cấn trừ: nhiên liệu theo định mức', Number(autoFuelQuota) || 0, true],
+                    ['Cấn trừ: phí điều hành', Number(autoDispatchFee) || 0, true],
+                    ['Tiền tài xế', liveBreakdown.driverPay, bookingType === 'WITH_DRIVER'],
+                    [`Khách sạn qua đêm (${nights} đêm)`, liveBreakdown.hotelFee, nights > 0],
+                    ['Chi phí nhập tay', liveBreakdown.manualExpenseOnly, true],
+                    ['Đậu xe / bến bãi', liveBreakdown.parkingFee, true],
+                    ['Phạt giao thông', liveBreakdown.trafficFineFee, true],
+                    ['Sự cố / rủi ro khác', liveBreakdown.otherRiskFee, true],
+                  ] as [string, number, boolean][]
+                )
+                  .filter(([, , show]) => show)
+                  .map(([label, value]) => (
+                    <div key={label} className="flex justify-between gap-3">
+                      <span className="text-slate-600">{label}</span>
+                      <span className={value ? 'font-medium text-slate-900' : 'text-slate-400'}>
+                        {value ? `-${formatVND(value)}` : formatVND(0)}
+                      </span>
+                    </div>
+                  ))}
+                <div className="flex justify-between gap-3 pt-2 mt-1 border-t border-slate-100 font-semibold">
+                  <span>Tổng chi phí</span>
+                  <span className="text-rose-700">-{formatVND(liveBreakdown.totalAllExpenses)}</span>
                 </div>
               </div>
             </div>
-
-            <div className="border-t sm:border-t-0 sm:border-l border-slate-700 pt-3 sm:pt-0 sm:pl-5 w-full sm:w-auto text-right">
-              <div className="text-xs r text-blue-300 font-semibold">
-                Số Thực Tế Còn Lại Vào Tài Khoản
-              </div>
-              <div className="text-xl sm:text-2xl font-extrabold text-white">
+            <div className="bg-slate-900 text-white px-4 py-3 flex items-center justify-between gap-3">
+              <div className="text-sm text-slate-300">Số thực còn lại vào tài khoản</div>
+              <div className="text-xl sm:text-2xl font-semibold">
                 {formatVND(liveBreakdown.netRemainingToAccount)}
               </div>
             </div>
