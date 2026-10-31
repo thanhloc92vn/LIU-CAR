@@ -168,9 +168,31 @@ export interface BotNotificationLog {
   status: 'SENT_WAITING' | 'DRIVER_CONFIRMED' | 'DRIVER_BUSY_RETAGGED' | 'DELIVERED';
 }
 
+export interface AdminAccount {
+  id: string;
+  username: string;
+  email: string;
+  fullName: string;
+  passwordHash: string; // Lưu mật khẩu quản trị
+  role: 'SUPER_ADMIN' | 'DISPATCHER' | 'ACCOUNTANT';
+  status: 'APPROVED' | 'PENDING_APPROVAL' | 'LOCKED';
+  createdAt: string;
+}
+
+export interface AuthUserSession {
+  id: string;
+  username: string;
+  fullName: string;
+  role: 'ADMIN' | 'DRIVER';
+  subRole?: 'SUPER_ADMIN' | 'DISPATCHER' | 'ACCOUNTANT';
+  driverId?: string; // Nếu role === 'DRIVER' thì chỉ xem/thao tác chuyến của tài xế này
+  loginAt: string;
+}
+
 export interface FleetDatabase {
   tenants: TenantConfig[];
   activeTenantId: string;
+  adminAccounts?: AdminAccount[];
   vehicles: Vehicle[];
   drivers: Driver[];
   highwayPresets: HighwayPreset[];

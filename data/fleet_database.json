@@ -1,5 +1,27 @@
 {
   "activeTenantId": "TENANT-MAIN",
+  "adminAccounts": [
+    {
+      "id": "ADM-01",
+      "username": "admin",
+      "email": "admin@liucar.vn",
+      "fullName": "Chủ Hệ Thống (Super Admin)",
+      "passwordHash": "LiuCar@2026",
+      "role": "SUPER_ADMIN",
+      "status": "APPROVED",
+      "createdAt": "2026-01-01"
+    },
+    {
+      "id": "ADM-02",
+      "username": "dieuhanh01",
+      "email": "dieuhanh@liucar.vn",
+      "fullName": "Nguyễn Minh Quân (Điều Hành Viên)",
+      "passwordHash": "123456",
+      "role": "DISPATCHER",
+      "status": "PENDING_APPROVAL",
+      "createdAt": "2026-10-31"
+    }
+  ],
   "tenants": [
     {
       "id": "TENANT-MAIN",
@@ -536,7 +558,7 @@
       "otherRiskNote": "",
       "status": "PENDING_CONFIRM",
       "botChannel": "BOTH",
-      "notes": "Đang chờ @taixe_minh bấm x��c nhận trên Telegram/Zalo (Tag dự phòng @hung_tran_driver)",
+      "notes": "Đang chờ @taixe_minh bấm xác nhận trên Telegram/Zalo (Tag dự phòng @hung_tran_driver)",
       "createdAt": "2026-10-31T06:00:00Z"
     }
   ],

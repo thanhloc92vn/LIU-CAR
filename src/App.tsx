@@ -8,8 +8,10 @@ import {
   ChevronRight,
   Edit3,
   Laptop,
+  LogOut,
   MapPin,
   Plus,
+  ShieldCheck,
   Signal,
   Smartphone,
   Sparkles,
@@ -19,6 +21,8 @@ import {
   Wifi,
 } from 'lucide-react';
 import {
+  AdminAccount,
+  AuthUserSession,
   BotNotificationLog,
   Driver,
   FleetDatabase,
@@ -41,12 +45,27 @@ import { FinanceSettlementTab } from './components/FinanceSettlementTab';
 import { FleetAndDriversTab } from './components/FleetAndDriversTab';
 import { AIBotZaloTelegramTab } from './components/AIBotZaloTelegramTab';
 import { MultiTenantSaaSModal } from './components/MultiTenantSaaSModal';
+import { AuthLoginGate } from './components/AuthLoginGate';
+import { AdminSecurityModal } from './components/AdminSecurityModal';
 
 type ActiveTab = 'BOOKINGS' | 'FINANCE' | 'FLEET_DRIVERS' | 'AI_BOT';
 
 export function App() {
   const [db, setDb] = useState<FleetDatabase>(initialFleetDatabase);
   const [isLoaded, setIsLoaded] = useState<boolean>(false);
+  const [authSession, setAuthSession] = useState<AuthUserSession | null>(() => {
+    if (typeof window === 'undefined') return null;
+    const saved = sessionStorage.getItem('LIUCAR_AUTH_SESSION');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  });
+
   const [activeTab, setActiveTab] = useState<ActiveTab>('BOOKINGS');
   const [mobilePreviewMode, setMobilePreviewMode] = useState<boolean>(false);
   const [isSmallScreen, setIsSmallScreen] = useState<boolean>(
@@ -64,6 +83,7 @@ export function App() {
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
   const [isSaaSModalOpen, setIsSaaSModalOpen] = useState(false);
+  const [isSecurityModalOpen, setIsSecurityModalOpen] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   useEffect(() => {
@@ -88,7 +108,14 @@ export function App() {
       if (isSupabaseConfigured()) {
         const cloudData = await loadFromSupabase();
         if (cloudData && cloudData.vehicles && mounted) {
-          setDb(cloudData);
+          setDb({
+            ...initialFleetDatabase,
+            ...cloudData,
+            adminAccounts:
+              cloudData.adminAccounts && cloudData.adminAccounts.length > 0
+                ? cloudData.adminAccounts
+                : initialFleetDatabase.adminAccounts,
+          });
           setIsLoaded(true);
           return;
         }
@@ -99,7 +126,14 @@ export function App() {
         if (res.ok) {
           const serverData = await res.json();
           if (serverData && serverData.vehicles && mounted) {
-            setDb(serverData);
+            setDb({
+              ...initialFleetDatabase,
+              ...serverData,
+              adminAccounts:
+                serverData.adminAccounts && serverData.adminAccounts.length > 0
+                  ? serverData.adminAccounts
+                  : initialFleetDatabase.adminAccounts,
+            });
             setIsLoaded(true);
             return;
           }
@@ -113,7 +147,14 @@ export function App() {
         try {
           const parsed = JSON.parse(cached);
           if (parsed && parsed.vehicles) {
-            setDb(parsed);
+            setDb({
+              ...initialFleetDatabase,
+              ...parsed,
+              adminAccounts:
+                parsed.adminAccounts && parsed.adminAccounts.length > 0
+                  ? parsed.adminAccounts
+                  : initialFleetDatabase.adminAccounts,
+            });
             setIsLoaded(true);
             return;
           }
@@ -154,6 +195,16 @@ export function App() {
     }).catch(() => {});
   }, [db, isLoaded]);
 
+  const adminAccounts: AdminAccount[] = useMemo(
+    () => db.adminAccounts || initialFleetDatabase.adminAccounts || [],
+    [db.adminAccounts]
+  );
+
+  const pendingApprovalsCount = useMemo(
+    () => adminAccounts.filter((a) => a.status === 'PENDING_APPROVAL').length,
+    [adminAccounts]
+  );
+
   const activeTenant: TenantConfig = useMemo(() => {
     return (
       db.tenants.find((t) => t.id === db.activeTenantId) ||
@@ -172,10 +223,18 @@ export function App() {
     [db.drivers, activeTenant.id]
   );
 
-  const tenantTrips = useMemo(
-    () => db.trips.filter((t) => t.tenantId === activeTenant.id),
-    [db.trips, activeTenant.id]
-  );
+  const tenantTrips = useMemo(() => {
+    const all = db.trips.filter((t) => t.tenantId === activeTenant.id);
+    // If logged in as a DRIVER, restrict to only their assigned or tagged trips
+    if (authSession?.role === 'DRIVER' && authSession.driverId) {
+      return all.filter(
+        (t) =>
+          t.driverId === authSession.driverId ||
+          t.taggedDriverIds?.includes(authSession.driverId)
+      );
+    }
+    return all;
+  }, [db.trips, activeTenant.id, authSession]);
 
   const tenantBotLogs = useMemo(
     () => db.botLogs.filter((l) => l.tenantId === activeTenant.id),
@@ -229,6 +288,33 @@ export function App() {
       return true;
     });
   }, [tenantTrips, bookingDriverFilter, bookingRouteFilter, bookingSeatFilter, tenantVehicles]);
+
+  // Auth Handlers
+  const handleLoginSuccess = (session: AuthUserSession) => {
+    setAuthSession(session);
+    sessionStorage.setItem('LIUCAR_AUTH_SESSION', JSON.stringify(session));
+    showToast(`👋 Chào mừng ${session.fullName} đã đăng nhập hệ thống!`);
+  };
+
+  const handleLogout = () => {
+    setAuthSession(null);
+    sessionStorage.removeItem('LIUCAR_AUTH_SESSION');
+  };
+
+  const handleRequestAdminAccess = (
+    newAcc: Omit<AdminAccount, 'id' | 'createdAt' | 'status'>
+  ) => {
+    const created: AdminAccount = {
+      ...newAcc,
+      id: `ADM-${Date.now()}`,
+      status: 'PENDING_APPROVAL',
+      createdAt: new Date().toISOString().slice(0, 10),
+    };
+    setDb((prev) => ({
+      ...prev,
+      adminAccounts: [...(prev.adminAccounts || []), created],
+    }));
+  };
 
   // Handlers
   const handleSaveTrip = (tripData: Omit<Trip, 'id' | 'createdAt'>, existingId?: string) => {
@@ -500,6 +586,19 @@ export function App() {
     showToast(`🧬 Đã nhân bản thành công hệ thống cho "${newTenant.name}"!`);
   };
 
+  // IF NOT LOGGED IN -> RENDER AUTH LOGIN GATE
+  if (!authSession) {
+    return (
+      <AuthLoginGate
+        adminAccounts={adminAccounts}
+        drivers={tenantDrivers}
+        companyName={activeTenant.name}
+        onLoginSuccess={handleLoginSuccess}
+        onRequestAdminAccess={handleRequestAdminAccess}
+      />
+    );
+  }
+
   return (
     <div
       className={`min-h-screen text-slate-900 flex flex-col ${
@@ -562,23 +661,27 @@ export function App() {
                   <h1 className="text-sm sm:text-base font-extrabold tracking-tight truncate">
                     {activeTenant.shortName}
                   </h1>
-                  <button
-                    type="button"
-                    onClick={() => setIsSaaSModalOpen(true)}
-                    className="px-2 py-0.5 rounded-full bg-blue-500/20 hover:bg-blue-500/30 border border-blue-400/30 text-[10px] font-bold text-blue-300 shrink-0 transition"
-                    title="Nhân bản doanh nghiệp mới hoặc chuyển chi nhánh"
-                  >
-                    🧬 {db.tenants.length} CN
-                  </button>
+                  {authSession.role === 'ADMIN' && (
+                    <button
+                      type="button"
+                      onClick={() => setIsSaaSModalOpen(true)}
+                      className="px-2 py-0.5 rounded-full bg-blue-500/20 hover:bg-blue-500/30 border border-blue-400/30 text-[10px] font-bold text-blue-300 shrink-0 transition"
+                      title="Nhân bản doanh nghiệp mới hoặc chuyển chi nhánh"
+                    >
+                      🧬 {db.tenants.length} CN
+                    </button>
+                  )}
                 </div>
                 <p className="text-[10px] text-slate-400 truncate">
-                  Xe 4-7-16 chỗ • Cao tốc/Quốc lộ • Tự cấn trừ & Bot AI
+                  {authSession.role === 'ADMIN'
+                    ? `👑 Quản trị: ${authSession.fullName}`
+                    : `👨‍✈️ Tài xế: ${authSession.fullName}`}
                 </p>
               </div>
             </div>
 
             {/* Right Controls */}
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-1.5 shrink-0">
               {!isMobileLayout && (
                 <button
                   type="button"
@@ -586,7 +689,24 @@ export function App() {
                   className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700 transition"
                 >
                   <Smartphone className="w-3.5 h-3.5 text-blue-400" />
-                  <span>Xem Giao Diện App Di Động (iOS/Android)</span>
+                  <span>Xem Giao Diện App Di Động</span>
+                </button>
+              )}
+
+              {authSession.role === 'ADMIN' && (
+                <button
+                  type="button"
+                  onClick={() => setIsSecurityModalOpen(true)}
+                  className="relative inline-flex items-center gap-1 px-2.5 py-2 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-400/40 text-emerald-300 text-xs font-bold transition"
+                  title="Quản lý tài khoản Admin, phê duyệt đăng nhập & kết nối Supabase"
+                >
+                  <ShieldCheck className="w-4 h-4" />
+                  <span className="hidden sm:inline">Bảo mật Admin</span>
+                  {pendingApprovalsCount > 0 && (
+                    <span className="px-1.5 py-0.2 rounded-full bg-rose-500 text-white text-[10px] font-extrabold">
+                      {pendingApprovalsCount}
+                    </span>
+                  )}
                 </button>
               )}
 
@@ -600,6 +720,15 @@ export function App() {
               >
                 <Plus className="w-4 h-4" />
                 <span>Đặt Lịch</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="p-2 rounded-xl bg-slate-800 hover:bg-rose-600 text-slate-300 hover:text-white transition"
+                title="Đăng xuất khỏi hệ thống"
+              >
+                <LogOut className="w-4 h-4" />
               </button>
             </div>
           </div>
@@ -656,14 +785,16 @@ export function App() {
                   <Bot className="w-4 h-4" />
                   4. AI Bot Xác Nhận Lịch & @Tag Zalo / Telegram
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setIsSaaSModalOpen(true)}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-blue-300 hover:bg-white/5 shrink-0 ml-auto"
-                >
-                  <Building2 className="w-4 h-4" />
-                  Nhân bản Doanh nghiệp (SaaS)
-                </button>
+                {authSession.role === 'ADMIN' && (
+                  <button
+                    type="button"
+                    onClick={() => setIsSaaSModalOpen(true)}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-blue-300 hover:bg-white/5 shrink-0 ml-auto"
+                  >
+                    <Building2 className="w-4 h-4" />
+                    Nhân bản Doanh nghiệp (SaaS)
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -685,6 +816,25 @@ export function App() {
               : 'max-w-7xl px-3 sm:px-6 py-5 space-y-6'
           }`}
         >
+          {/* Banner thông báo nếu có tài khoản đang chờ Admin xác nhận */}
+          {authSession.role === 'ADMIN' && pendingApprovalsCount > 0 && (
+            <div className="bg-amber-50 border border-amber-300 rounded-2xl p-3.5 flex flex-wrap items-center justify-between gap-2 text-xs">
+              <div className="font-bold text-amber-950 flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>
+                  Có {pendingApprovalsCount} tài khoản nhân viên đang chờ Admin xác nhận cấp quyền đăng nhập!
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsSecurityModalOpen(true)}
+                className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold transition"
+              >
+                Mở Bảng Duyệt Ngay
+              </button>
+            </div>
+          )}
+
           {/* TAB 1: LỊCH ĐẶT XE & LỘ TRÌNH DI CHUYỂN */}
           {activeTab === 'BOOKINGS' && (
             <div className="space-y-4">
@@ -782,7 +932,13 @@ export function App() {
                   ))}
                 </div>
 
-                <div className={isMobileLayout ? 'grid grid-cols-2 gap-2' : 'flex flex-wrap items-center gap-2'}>
+                <div
+                  className={
+                    isMobileLayout
+                      ? 'grid grid-cols-2 gap-2'
+                      : 'flex flex-wrap items-center gap-2'
+                  }
+                >
                   <select
                     value={bookingRouteFilter}
                     onChange={(e) =>
@@ -903,7 +1059,7 @@ export function App() {
                         </div>
                       )}
 
-                      {/* Middle Row: Route & Driver (1 column on Mobile, 2 columns on Desktop) */}
+                      {/* Middle Row: Route & Driver */}
                       <div
                         className={
                           isMobileLayout
@@ -975,7 +1131,7 @@ export function App() {
                         </div>
                       </div>
 
-                      {/* Bottom Row: Financial Breakdown Bar (2x2 + Full-width bottom banner on Mobile so numbers NEVER overflow!) */}
+                      {/* Bottom Row: Financial Breakdown Bar */}
                       {isMobileLayout ? (
                         <div className="grid grid-cols-2 gap-2 text-xs">
                           <div className="bg-emerald-50/80 border border-emerald-200 rounded-xl px-3 py-2 flex items-center justify-between">
@@ -1124,7 +1280,7 @@ export function App() {
           )}
         </main>
 
-        {/* Bottom Navigation Bar (Hiển thị trên Điện thoại iOS/Android & Chế độ Xem trước App Mobile) */}
+        {/* Bottom Navigation Bar */}
         <nav
           className={`${
             mobilePreviewMode
@@ -1213,6 +1369,71 @@ export function App() {
             highwayPresets: [...prev.highwayPresets, newPreset],
           }));
           showToast(`🛣️ Đã thêm tuyến định mức "${newPreset.name}"!`);
+        }}
+      />
+
+      {/* Modal Quản trị Bảo mật & Xác nhận Đăng nhập Admin */}
+      <AdminSecurityModal
+        isOpen={isSecurityModalOpen}
+        onClose={() => setIsSecurityModalOpen(false)}
+        adminAccounts={adminAccounts}
+        onApproveAccount={(accId) => {
+          setDb((prev) => ({
+            ...prev,
+            adminAccounts: (prev.adminAccounts || adminAccounts).map((a) =>
+              a.id === accId ? { ...a, status: 'APPROVED' } : a
+            ),
+          }));
+          showToast('✅ Đã xác nhận phê duyệt quyền đăng nhập cho tài khoản!');
+        }}
+        onToggleLockAccount={(accId) => {
+          setDb((prev) => ({
+            ...prev,
+            adminAccounts: (prev.adminAccounts || adminAccounts).map((a) =>
+              a.id === accId
+                ? { ...a, status: a.status === 'LOCKED' ? 'APPROVED' : 'LOCKED' }
+                : a
+            ),
+          }));
+          showToast('🔒 Đã cập nhật trạng thái khóa tài khoản!');
+        }}
+        onDeleteAccount={(accId) => {
+          setDb((prev) => ({
+            ...prev,
+            adminAccounts: (prev.adminAccounts || adminAccounts).filter((a) => a.id !== accId),
+          }));
+          showToast('🗑️ Đã xóa tài khoản khỏi hệ thống!');
+        }}
+        onUpdateAdminPassword={(accId, newPass) => {
+          setDb((prev) => ({
+            ...prev,
+            adminAccounts: (prev.adminAccounts || adminAccounts).map((a) =>
+              a.id === accId ? { ...a, passwordHash: newPass } : a
+            ),
+          }));
+          showToast('🔑 Đã đổi mật khẩu Admin thành công!');
+        }}
+        onCreateApprovedAdmin={(newAcc) => {
+          const created: AdminAccount = {
+            ...newAcc,
+            id: `ADM-${Date.now()}`,
+            createdAt: new Date().toISOString().slice(0, 10),
+          };
+          setDb((prev) => ({
+            ...prev,
+            adminAccounts: [...(prev.adminAccounts || adminAccounts), created],
+          }));
+          showToast(`✅ Đã cấp quyền đăng nhập cho @${created.username}!`);
+        }}
+        onSaveSupabaseCreds={async (url, anonKey) => {
+          localStorage.setItem('LIUCAR_SUPABASE_URL', url.trim());
+          localStorage.setItem('LIUCAR_SUPABASE_KEY', anonKey.trim());
+          const ok = await saveToSupabase(db);
+          if (ok) {
+            showToast('☁️ Đã kết nối và đẩy toàn bộ bảng dữ liệu lên Supabase thành công!');
+          } else {
+            showToast('⚠️ Đã lưu thông tin Supabase. Vui lòng kiểm tra lại URL & Anon Key!');
+          }
         }}
       />
     </div>

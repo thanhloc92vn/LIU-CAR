@@ -20,6 +20,40 @@ export function isSupabaseConfigured(): boolean {
   return Boolean(url && anonKey);
 }
 
+export async function signInWithSupabaseAuth(
+  email: string,
+  password: string
+): Promise<{ ok: boolean; email?: string; userId?: string; error?: string }> {
+  const { url, anonKey } = getSupabaseCredentials();
+  if (!url || !anonKey) {
+    return { ok: false, error: 'Chưa cấu hình URL/Key Supabase' };
+  }
+  try {
+    const res = await fetch(`${url}/auth/v1/token?grant_type=password`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: anonKey,
+      },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await res.json();
+    if (res.ok && data?.access_token) {
+      return {
+        ok: true,
+        email: data.user?.email || email,
+        userId: data.user?.id || 'SB-ADMIN',
+      };
+    }
+    return {
+      ok: false,
+      error: data?.error_description || data?.msg || 'Sai thông tin xác thực Supabase',
+    };
+  } catch (err: any) {
+    return { ok: false, error: err?.message || 'Lỗi kết nối Supabase Auth' };
+  }
+}
+
 export async function loadFromSupabase(): Promise<FleetDatabase | null> {
   const { url, anonKey } = getSupabaseCredentials();
   if (!url || !anonKey) return null;

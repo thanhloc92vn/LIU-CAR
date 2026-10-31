@@ -2,6 +2,28 @@ import { FleetDatabase } from '../types/fleet';
 
 export const initialFleetDatabase: FleetDatabase = {
   activeTenantId: 'TENANT-MAIN',
+  adminAccounts: [
+    {
+      id: 'ADM-01',
+      username: 'admin',
+      email: 'admin@liucar.vn',
+      fullName: 'Chủ Hệ Thống (Super Admin)',
+      passwordHash: 'LiuCar@2026',
+      role: 'SUPER_ADMIN',
+      status: 'APPROVED',
+      createdAt: '2026-01-01',
+    },
+    {
+      id: 'ADM-02',
+      username: 'dieuhanh01',
+      email: 'dieuhanh@liucar.vn',
+      fullName: 'Nguyễn Minh Quân (Điều Hành Viên)',
+      passwordHash: '123456',
+      role: 'DISPATCHER',
+      status: 'PENDING_APPROVAL',
+      createdAt: '2026-10-31',
+    },
+  ],
   tenants: [
     {
       id: 'TENANT-MAIN',
