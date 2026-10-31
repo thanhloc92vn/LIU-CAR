@@ -2,9 +2,11 @@ import React, { useState } from 'react';
 import {
   CheckCircle2,
   Cloud,
+  Copy,
+  ExternalLink,
+  Globe,
   KeyRound,
   Lock,
-  ShieldAlert,
   ShieldCheck,
   Trash2,
   UserCheck,
@@ -21,7 +23,11 @@ interface AdminSecurityModalProps {
   onApproveAccount: (accountId: string) => void;
   onToggleLockAccount: (accountId: string) => void;
   onDeleteAccount: (accountId: string) => void;
-  onUpdateAdminPassword: (accountId: string, newPassword: string) => void;
+  onUpdateAdminCredentials: (
+    accountId: string,
+    newUsername: string,
+    newPassword: string
+  ) => void;
   onCreateApprovedAdmin: (acc: Omit<AdminAccount, 'id' | 'createdAt'>) => void;
   onSaveSupabaseCreds: (url: string, anonKey: string) => void;
 }
@@ -33,7 +39,7 @@ export const AdminSecurityModal: React.FC<AdminSecurityModalProps> = ({
   onApproveAccount,
   onToggleLockAccount,
   onDeleteAccount,
-  onUpdateAdminPassword,
+  onUpdateAdminCredentials,
   onCreateApprovedAdmin,
   onSaveSupabaseCreds,
 }) => {
@@ -41,8 +47,13 @@ export const AdminSecurityModal: React.FC<AdminSecurityModalProps> = ({
   const [sbUrl, setSbUrl] = useState(existingSb.url);
   const [sbKey, setSbKey] = useState(existingSb.anonKey);
 
-  // Change password for primary admin
+  const mainAdmin =
+    adminAccounts.find((a) => a.role === 'SUPER_ADMIN') || adminAccounts[0];
+
+  // Change username & password for primary admin
+  const [editAdminUser, setEditAdminUser] = useState(mainAdmin?.username || 'admin');
   const [newAdminPass, setNewAdminPass] = useState('');
+  const [copiedLink, setCopiedLink] = useState<'PUBLIC' | 'ADMIN' | null>(null);
 
   // Add new admin directly
   const [newUsername, setNewUsername] = useState('');
@@ -51,6 +62,17 @@ export const AdminSecurityModal: React.FC<AdminSecurityModalProps> = ({
   const [newRole, setNewRole] = useState<AdminAccount['role']>('DISPATCHER');
 
   if (!isOpen) return null;
+
+  const origin =
+    typeof window !== 'undefined' ? window.location.origin : 'https://liu-car.vercel.app';
+  const publicUrl = `${origin}/`;
+  const adminLoginUrl = `${origin}/admin`;
+
+  const handleCopy = (url: string, type: 'PUBLIC' | 'ADMIN') => {
+    navigator.clipboard?.writeText(url);
+    setCopiedLink(type);
+    setTimeout(() => setCopiedLink(null), 2500);
+  };
 
   const pendingCount = adminAccounts.filter((a) => a.status === 'PENDING_APPROVAL').length;
 
@@ -103,6 +125,68 @@ export const AdminSecurityModal: React.FC<AdminSecurityModalProps> = ({
         </div>
 
         <div className="p-5 overflow-y-auto space-y-6 flex-1 text-xs">
+          {/* 0. Hai Đường Link Tách Biệt: Link Khách Hàng Đặt Xe vs Link Đăng Nhập Quản Trị Riêng */}
+          <div className="bg-slate-900 text-white rounded-2xl p-4 space-y-3 border border-slate-800">
+            <div className="font-extrabold text-sm flex items-center gap-2 text-blue-300">
+              <Globe className="w-4 h-4 text-blue-400" />
+              <span>Cấu Hình 2 Đường Link Tách Biệt (Khách Đặt Xe & Quản Trị Riêng)</span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {/* Public link */}
+              <div className="bg-slate-800/90 rounded-xl p-3 border border-slate-700 space-y-1.5">
+                <div className="text-[11px] font-bold text-emerald-300">
+                  🌐 1. Link Web Công Khai Cho Khách Đặt Xe:
+                </div>
+                <div className="font-mono text-xs text-white bg-slate-950 px-2.5 py-1.5 rounded-lg border border-slate-700 truncate">
+                  {publicUrl}
+                </div>
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(publicUrl, 'PUBLIC')}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] transition"
+                  >
+                    <Copy className="w-3 h-3" />
+                    <span>{copiedLink === 'PUBLIC' ? 'Đã copy!' : 'Copy link gửi khách'}</span>
+                  </button>
+                  <a
+                    href={publicUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold text-[11px] transition"
+                  >
+                    <ExternalLink className="w-3 h-3" />
+                    <span>Mở trang khách</span>
+                  </a>
+                </div>
+              </div>
+
+              {/* Private Admin Login link */}
+              <div className="bg-slate-800/90 rounded-xl p-3 border border-blue-500/40 space-y-1.5">
+                <div className="text-[11px] font-bold text-amber-300">
+                  🔐 2. Link Đăng Nhập Quản Trị Riêng (Nội bộ):
+                </div>
+                <div className="font-mono text-xs text-amber-200 bg-slate-950 px-2.5 py-1.5 rounded-lg border border-slate-700 truncate">
+                  {adminLoginUrl}
+                </div>
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(adminLoginUrl, 'ADMIN')}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] transition"
+                  >
+                    <Copy className="w-3 h-3" />
+                    <span>{copiedLink === 'ADMIN' ? 'Đã copy!' : 'Copy link Admin'}</span>
+                  </button>
+                  <span className="text-[10px] text-slate-400">
+                    (Hoặc vào <code className="text-slate-200">/quan-tri</code>,{' '}
+                    <code className="text-slate-200">/login</code>)
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* 1. Danh sách Tài khoản & Phê duyệt Đăng nhập */}
           <div className="space-y-3">
             <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
@@ -171,7 +255,7 @@ export const AdminSecurityModal: React.FC<AdminSecurityModalProps> = ({
                       </button>
                     )}
 
-                    {acc.username !== 'admin' && (
+                    {acc.role !== 'SUPER_ADMIN' && (
                       <>
                         <button
                           type="button"
@@ -197,37 +281,42 @@ export const AdminSecurityModal: React.FC<AdminSecurityModalProps> = ({
             </div>
           </div>
 
-          {/* 2. Đổi mật khẩu Admin chính & Tạo tài khoản mới */}
+          {/* 2. Đổi Tên đăng nhập & Mật khẩu Admin chính & Tạo tài khoản mới */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-blue-50/70 rounded-xl p-4 border border-blue-200 space-y-3">
+            <div className="bg-blue-50/70 rounded-xl p-4 border border-blue-200 space-y-2.5">
               <h4 className="font-bold text-blue-950 flex items-center gap-1.5 text-xs">
                 <KeyRound className="w-4 h-4 text-blue-600" />
-                2. Đổi Mật Khẩu Tài Khoản Admin Chính (`admin`)
+                2. Đổi User & Mật Khẩu Admin Chính ({mainAdmin?.username || 'admin'})
               </h4>
-              <div className="flex gap-2">
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="text"
+                  value={editAdminUser}
+                  onChange={(e) => setEditAdminUser(e.target.value)}
+                  placeholder="Tên đăng nhập Admin..."
+                  className="rounded-lg border border-blue-300 bg-white px-2.5 py-1.5 text-xs font-semibold"
+                />
                 <input
                   type="text"
                   value={newAdminPass}
                   onChange={(e) => setNewAdminPass(e.target.value)}
-                  placeholder="Nhập mật khẩu Admin mới..."
-                  className="flex-1 rounded-lg border border-blue-300 bg-white px-3 py-2 text-xs font-semibold"
+                  placeholder="Mật khẩu mới..."
+                  className="rounded-lg border border-blue-300 bg-white px-2.5 py-1.5 text-xs font-semibold"
                 />
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!newAdminPass.trim()) return;
-                    const mainAdmin =
-                      adminAccounts.find((a) => a.username === 'admin') || adminAccounts[0];
-                    if (mainAdmin) {
-                      onUpdateAdminPassword(mainAdmin.id, newAdminPass.trim());
-                      setNewAdminPass('');
-                    }
-                  }}
-                  className="px-3.5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold shrink-0"
-                >
-                  Lưu Mật Khẩu
-                </button>
               </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!mainAdmin) return;
+                  const finalUser = editAdminUser.trim() || mainAdmin.username;
+                  const finalPass = newAdminPass.trim() || mainAdmin.passwordHash;
+                  onUpdateAdminCredentials(mainAdmin.id, finalUser, finalPass);
+                  setNewAdminPass('');
+                }}
+                className="w-full py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold"
+              >
+                Lưu Tài Khoản & Mật Khẩu Admin
+              </button>
             </div>
 
             <form

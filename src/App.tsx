@@ -7,12 +7,12 @@ import {
   Car,
   ChevronRight,
   Edit3,
+  Globe,
   Laptop,
   LogOut,
   MapPin,
   Plus,
   Printer,
-  RefreshCw,
   ShieldCheck,
   Signal,
   Smartphone,
@@ -51,12 +51,27 @@ import { MultiTenantSaaSModal } from './components/MultiTenantSaaSModal';
 import { AuthLoginGate } from './components/AuthLoginGate';
 import { AdminSecurityModal } from './components/AdminSecurityModal';
 import { PrintableVoucherModal } from './components/PrintableVoucherModal';
+import { PublicCustomerBookingPortal } from './components/PublicCustomerBookingPortal';
 
 type ActiveTab = 'BOOKINGS' | 'FINANCE' | 'FLEET_DRIVERS' | 'AI_BOT';
+
+function checkIsAdminUrl(): boolean {
+  if (typeof window === 'undefined') return false;
+  const path = window.location.pathname.toLowerCase();
+  const hash = window.location.hash.toLowerCase();
+  return (
+    path.startsWith('/admin') ||
+    path.startsWith('/quan-tri') ||
+    path.startsWith('/login') ||
+    hash.includes('admin') ||
+    hash.includes('quan-tri')
+  );
+}
 
 export function App() {
   const [db, setDb] = useState<FleetDatabase>(initialFleetDatabase);
   const [isLoaded, setIsLoaded] = useState<boolean>(false);
+  const [isAdminRoute, setIsAdminRoute] = useState<boolean>(checkIsAdminUrl);
   const [authSession, setAuthSession] = useState<AuthUserSession | null>(() => {
     if (typeof window === 'undefined') return null;
     const saved = sessionStorage.getItem('LIUCAR_AUTH_SESSION');
@@ -93,9 +108,23 @@ export function App() {
 
   useEffect(() => {
     const handleResize = () => setIsSmallScreen(window.innerWidth < 768);
+    const handleRouteChange = () => setIsAdminRoute(checkIsAdminUrl());
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    window.addEventListener('popstate', handleRouteChange);
+    window.addEventListener('hashchange', handleRouteChange);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('popstate', handleRouteChange);
+      window.removeEventListener('hashchange', handleRouteChange);
+    };
   }, []);
+
+  const navigateToRoute = (targetPath: '/' | '/admin') => {
+    if (typeof window !== 'undefined') {
+      window.history.pushState({}, '', targetPath);
+      setIsAdminRoute(checkIsAdminUrl());
+    }
+  };
 
   const isMobileLayout = mobilePreviewMode || isSmallScreen;
 
@@ -592,7 +621,64 @@ export function App() {
     showToast(`🧬 Đã nhân bản thành công hệ thống cho "${newTenant.name}"!`);
   };
 
-  // IF NOT LOGGED IN -> RENDER AUTH LOGIN GATE
+  // Handler when a public customer submits a booking from `/`
+  const handleCustomerCreateBooking = (
+    tripData: Omit<Trip, 'id' | 'createdAt'>
+  ): Trip => {
+    const newId = `TRIP-${Date.now()}`;
+    const newTrip: Trip = {
+      ...tripData,
+      id: newId,
+      createdAt: new Date().toISOString(),
+    };
+    const veh = tenantVehicles.find((v) => v.id === newTrip.vehicleId);
+    const drv = tenantDrivers.find((d) => d.id === newTrip.driverId);
+    const taggedDrvs = tenantDrivers.filter((d) =>
+      newTrip.taggedDriverIds.includes(d.id)
+    );
+
+    const botMsg = buildBotDispatchMessage(newTrip, veh, drv, taggedDrvs);
+    const newLog: BotNotificationLog = {
+      id: `LOG-${Date.now()}`,
+      tenantId: activeTenant.id,
+      tripId: newId,
+      tripCode: newTrip.tripCode,
+      timestamp: new Date().toLocaleString('vi-VN'),
+      channel: 'TELEGRAM',
+      recipientDriverId: drv?.id,
+      recipientName: drv?.fullName || 'Tài xế',
+      recipientHandle: taggedDrvs
+        .map((d) => `${d.telegramUsername} / Zalo:${d.zaloPhone}`)
+        .join(', '),
+      messageType: 'BOOKING_CONFIRM',
+      content: `🌐 [KHÁCH ĐẶT TRỰC TUYẾN TRÊN WEB]\n${botMsg}`,
+      status: 'SENT_WAITING',
+    };
+
+    setDb((prev) => ({
+      ...prev,
+      trips: [newTrip, ...prev.trips],
+      botLogs: [newLog, ...prev.botLogs],
+    }));
+
+    return newTrip;
+  };
+
+  // 1. TRANG CÔNG KHAI CHO KHÁCH HÀNG ĐẶT XE (`/`) — Tách biệt hoàn toàn khỏi link Admin
+  if (!isAdminRoute) {
+    return (
+      <PublicCustomerBookingPortal
+        tenant={activeTenant}
+        vehicles={tenantVehicles}
+        drivers={tenantDrivers}
+        highwayPresets={db.highwayPresets}
+        trips={db.trips.filter((t) => t.tenantId === activeTenant.id)}
+        onCustomerCreateBooking={handleCustomerCreateBooking}
+      />
+    );
+  }
+
+  // 2. TRANG ĐĂNG NHẬP QUẢN TRỊ RIÊNG (`/admin` hoặc `/quan-tri` hoặc `/login`)
   if (!authSession) {
     return (
       <AuthLoginGate
@@ -601,6 +687,7 @@ export function App() {
         companyName={activeTenant.name}
         onLoginSuccess={handleLoginSuccess}
         onRequestAdminAccess={handleRequestAdminAccess}
+        onBackToPublicPortal={() => navigateToRoute('/')}
       />
     );
   }
@@ -688,6 +775,16 @@ export function App() {
 
             {/* Right Controls */}
             <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => navigateToRoute('/')}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold bg-slate-800 text-blue-300 border border-slate-700 hover:bg-slate-700 transition"
+                title="Xem trang công khai dành cho khách hàng đặt xe"
+              >
+                <Globe className="w-3.5 h-3.5 text-blue-400" />
+                <span className="hidden md:inline">Trang Khách Đặt Xe</span>
+              </button>
+
               {!isMobileLayout && (
                 <button
                   type="button"
@@ -1476,14 +1573,16 @@ export function App() {
           }));
           showToast('🗑️ Đã xóa tài khoản khỏi hệ thống!');
         }}
-        onUpdateAdminPassword={(accId, newPass) => {
+        onUpdateAdminCredentials={(accId, newUsername, newPass) => {
           setDb((prev) => ({
             ...prev,
             adminAccounts: (prev.adminAccounts || adminAccounts).map((a) =>
-              a.id === accId ? { ...a, passwordHash: newPass } : a
+              a.id === accId
+                ? { ...a, username: newUsername, passwordHash: newPass }
+                : a
             ),
           }));
-          showToast('🔑 Đã đổi mật khẩu Admin thành công!');
+          showToast(`🔑 Đã cập nhật User (@${newUsername}) & Mật khẩu Admin thành công!`);
         }}
         onCreateApprovedAdmin={(newAcc) => {
           const created: AdminAccount = {

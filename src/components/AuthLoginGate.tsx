@@ -18,6 +18,7 @@ interface AuthLoginGateProps {
   companyName: string;
   onLoginSuccess: (session: AuthUserSession) => void;
   onRequestAdminAccess: (newAccount: Omit<AdminAccount, 'id' | 'createdAt' | 'status'>) => void;
+  onBackToPublicPortal?: () => void;
 }
 
 export const AuthLoginGate: React.FC<AuthLoginGateProps> = ({
@@ -26,6 +27,7 @@ export const AuthLoginGate: React.FC<AuthLoginGateProps> = ({
   companyName,
   onLoginSuccess,
   onRequestAdminAccess,
+  onBackToPublicPortal,
 }) => {
   const [mode, setMode] = useState<'ADMIN_LOGIN' | 'DRIVER_LOGIN' | 'REGISTER_REQUEST'>(
     'ADMIN_LOGIN'
@@ -462,6 +464,18 @@ export const AuthLoginGate: React.FC<AuthLoginGateProps> = ({
                 Gửi Yêu Cầu Chờ Admin Duyệt
               </button>
             </form>
+          )}
+
+          {onBackToPublicPortal && (
+            <div className="pt-3 border-t border-slate-200 text-center">
+              <button
+                type="button"
+                onClick={onBackToPublicPortal}
+                className="text-xs font-bold text-slate-500 hover:text-blue-600 transition"
+              >
+                ← Quay về Trang Chủ Đặt Xe Công Khai (Dành cho Khách hàng)
+              </button>
+            </div>
           )}
         </div>
       </div>
