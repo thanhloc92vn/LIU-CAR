@@ -1,65 +1,56 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { Copy, ExternalLink, Globe, KeyRound, Lock, ShieldCheck, Trash2, UserCheck, UserPlus, X } from 'lucide-react';
+import { Driver } from '../types/fleet';
 import {
-  CheckCircle2,
-  Cloud,
-  Copy,
-  ExternalLink,
-  Globe,
-  KeyRound,
-  Lock,
-  ShieldCheck,
-  Trash2,
-  UserCheck,
-  UserPlus,
-  X,
-} from 'lucide-react';
-import { AdminAccount } from '../types/fleet';
-import { getSupabaseCredentials } from '../services/supabaseClient';
+  changeMyPassword,
+  deleteStaff,
+  DRIVER_EMAIL_DOMAIN,
+  listStaff,
+  setStaff,
+  StaffMember,
+  StaffRole,
+} from '../services/supabaseClient';
 
 interface AdminSecurityModalProps {
   isOpen: boolean;
   onClose: () => void;
-  adminAccounts: AdminAccount[];
-  onApproveAccount: (accountId: string) => void;
-  onToggleLockAccount: (accountId: string) => void;
-  onDeleteAccount: (accountId: string) => void;
-  onUpdateAdminCredentials: (
-    accountId: string,
-    newUsername: string,
-    newPassword: string
-  ) => void;
-  onCreateApprovedAdmin: (acc: Omit<AdminAccount, 'id' | 'createdAt'>) => void;
-  onSaveSupabaseCreds: (url: string, anonKey: string) => void;
+  isSuperAdmin: boolean;
+  drivers: Driver[];
+  showToast: (msg: string) => void;
 }
 
+const ROLE_LABELS: Record<StaffRole, string> = {
+  SUPER_ADMIN: 'Chủ hệ thống',
+  DISPATCHER: 'Điều hành xe',
+  ACCOUNTANT: 'Kế toán',
+  DRIVER: 'Tài xế',
+};
+
+// Người dùng nằm trong Supabase Auth (mật khẩu do Supabase giữ). Ở đây chỉ cấp/thu quyền trong bảng staff.
 export const AdminSecurityModal: React.FC<AdminSecurityModalProps> = ({
   isOpen,
   onClose,
-  adminAccounts,
-  onApproveAccount,
-  onToggleLockAccount,
-  onDeleteAccount,
-  onUpdateAdminCredentials,
-  onCreateApprovedAdmin,
-  onSaveSupabaseCreds,
+  isSuperAdmin,
+  drivers,
+  showToast,
 }) => {
-  const existingSb = getSupabaseCredentials();
-  const [sbUrl, setSbUrl] = useState(existingSb.url);
-  const [sbKey, setSbKey] = useState(existingSb.anonKey);
-
-  const mainAdmin =
-    adminAccounts.find((a) => a.role === 'SUPER_ADMIN') || adminAccounts[0];
-
-  // Change username & password for primary admin
-  const [editAdminUser, setEditAdminUser] = useState(mainAdmin?.username || 'admin');
-  const [newAdminPass, setNewAdminPass] = useState('');
   const [copiedLink, setCopiedLink] = useState<'PUBLIC' | 'ADMIN' | null>(null);
+  const [staff, setStaffList] = useState<StaffMember[]>([]);
+  const [busy, setBusy] = useState(false);
 
-  // Add new admin directly
-  const [newUsername, setNewUsername] = useState('');
-  const [newFullName, setNewFullName] = useState('');
+  // Cấp quyền cho tài khoản đã tạo trong Supabase Auth
+  const [email, setEmail] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [role, setRole] = useState<StaffRole>('DISPATCHER');
+  const [driverId, setDriverId] = useState('');
+
   const [newPass, setNewPass] = useState('');
-  const [newRole, setNewRole] = useState<AdminAccount['role']>('DISPATCHER');
+
+  const refresh = () => listStaff().then(setStaffList);
+
+  useEffect(() => {
+    if (isOpen) refresh();
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -74,22 +65,51 @@ export const AdminSecurityModal: React.FC<AdminSecurityModalProps> = ({
     setTimeout(() => setCopiedLink(null), 2500);
   };
 
-  const pendingCount = adminAccounts.filter((a) => a.status === 'PENDING_APPROVAL').length;
+  const driverName = (id: string | null) => drivers.find((d) => d.id === id)?.fullName || id || '';
 
-  const handleCreateDirect = (e: React.FormEvent) => {
+  const save = async (m: Parameters<typeof setStaff>[0], doneMsg: string) => {
+    setBusy(true);
+    const r = await setStaff(m);
+    setBusy(false);
+    if (!r.ok) {
+      showToast(r.error || 'Không lưu được quyền');
+      return false;
+    }
+    showToast(doneMsg);
+    refresh();
+    return true;
+  };
+
+  const handleGrant = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newUsername.trim() || !newPass.trim()) return;
-    onCreateApprovedAdmin({
-      username: newUsername.trim(),
-      email: `${newUsername.trim()}@liucar.vn`,
-      fullName: newFullName.trim() || newUsername.trim(),
-      passwordHash: newPass.trim(),
-      role: newRole,
-      status: 'APPROVED',
-    });
-    setNewUsername('');
-    setNewFullName('');
-    setNewPass('');
+    const login = email.trim().toLowerCase();
+    // Tài xế có thể nhập số điện thoại; tài khoản tương ứng là <số>@taixe.haydixe.vn
+    const fullEmail = login.includes('@') ? login : `${login.replace(/\D/g, '')}@${DRIVER_EMAIL_DOMAIN}`;
+    const drv = drivers.find((d) => d.id === driverId);
+    const ok = await save(
+      {
+        email: fullEmail,
+        role,
+        fullName: fullName.trim() || (role === 'DRIVER' ? drv?.fullName || '' : ''),
+        driverId: role === 'DRIVER' ? driverId : undefined,
+        active: true,
+      },
+      `Đã cấp quyền ${ROLE_LABELS[role]} cho ${fullEmail}`
+    );
+    if (ok) {
+      setEmail('');
+      setFullName('');
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (newPass.trim().length < 8) {
+      showToast('Mật khẩu mới cần ít nhất 8 ký tự');
+      return;
+    }
+    const r = await changeMyPassword(newPass.trim());
+    showToast(r.ok ? 'Đã đổi mật khẩu của bạn' : r.error || 'Không đổi được mật khẩu');
+    if (r.ok) setNewPass('');
   };
 
   return (
@@ -102,16 +122,9 @@ export const AdminSecurityModal: React.FC<AdminSecurityModalProps> = ({
               <ShieldCheck className="w-5 h-5 text-emerald-400" />
             </div>
             <div>
-              <h3 className="text-base font-bold flex items-center gap-2">
-                <span>Quản trị bảo mật & xác nhận đăng nhập Admin</span>
-                {pendingCount > 0 && (
-                  <span className="px-2 py-0.5 rounded-full bg-rose-500 text-white text-xs font-extrabold">
-                    {pendingCount} chờ duyệt
-                  </span>
-                )}
-              </h3>
+              <h3 className="text-base font-bold">Tài khoản & phân quyền</h3>
               <p className="text-xs text-slate-500">
-                Phê duyệt nhân viên xin cấp quyền, đổi mật khẩu Admin & cấu hình đồng bộ đám mây Supabase
+                Đăng nhập bằng Supabase Auth: admin thấy và sửa toàn bộ, tài xế chỉ thấy chuyến của mình
               </p>
             </div>
           </div>
@@ -187,223 +200,166 @@ export const AdminSecurityModal: React.FC<AdminSecurityModalProps> = ({
             </div>
           </div>
 
-          {/* 1. Danh sách Tài khoản & Phê duyệt Đăng nhập */}
+          {/* 1. Danh sách người dùng được phép vào app */}
           <div className="space-y-3">
             <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
               <UserCheck className="w-4 h-4 text-blue-600" />
-              Danh sách tài khoản quản trị & xác nhận cho phép đăng nhập ({adminAccounts.length})
+              Người dùng được phép đăng nhập ({staff.length})
             </h4>
-
             <div className="space-y-2.5">
-              {adminAccounts.map((acc) => (
+              {staff.map((m) => (
                 <div
-                  key={acc.id}
+                  key={m.user_id}
                   className={`p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
-                    acc.status === 'PENDING_APPROVAL'
-                      ? 'bg-amber-50 border-amber-300'
-                      : acc.status === 'LOCKED'
-                      ? 'bg-rose-50/60 border-rose-200'
-                      : 'bg-slate-50 border-slate-200'
+                    m.active ? 'bg-slate-50 border-slate-200' : 'bg-rose-50/60 border-rose-200'
                   }`}
                 >
                   <div className="space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-extrabold text-sm text-slate-900">{acc.fullName}</span>
-                      <span className="px-2 py-0.5 rounded bg-slate-200 text-slate-800 font-mono font-bold text-xs">
-                        @{acc.username}
-                      </span>
+                      <span className="font-extrabold text-sm text-slate-900">{m.full_name || m.email}</span>
                       <span className="px-2 py-0.5 rounded bg-blue-100 text-blue-800 font-bold text-xs">
-                        {acc.role === 'SUPER_ADMIN'
-                          ? 'Chủ Hệ Thống'
-                          : acc.role === 'DISPATCHER'
-                          ? 'Điều Hành Xe'
-                          : 'Kế Toán'}
+                        {ROLE_LABELS[m.role]}
                       </span>
-                      <span
-                        className={`px-2 py-0.5 rounded-full font-bold text-xs ${
-                          acc.status === 'APPROVED'
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : acc.status === 'PENDING_APPROVAL'
-                            ? 'bg-amber-200 text-amber-900 animate-pulse'
-                            : 'bg-rose-100 text-rose-800'
-                        }`}
-                      >
-                        {acc.status === 'APPROVED'
-                          ? 'Đã xác nhận cho phép'
-                          : acc.status === 'PENDING_APPROVAL'
-                          ? 'Chờ Admin Xác Nhận'
-                          : 'Đã khóa'}
-                      </span>
+                      {!m.active && (
+                        <span className="px-2 py-0.5 rounded-full font-bold text-xs bg-rose-100 text-rose-800">
+                          Đã khóa
+                        </span>
+                      )}
                     </div>
                     <div className="text-slate-500">
-                      Email: {acc.email} • Ngày tạo: {acc.createdAt} • Mật khẩu hiện tại:{' '}
-                      <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 text-slate-800 font-bold">
-                        {acc.passwordHash}
-                      </code>
+                      {m.email}
+                      {m.role === 'DRIVER' && ` • Hồ sơ tài xế: ${driverName(m.driver_id)}`}
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
-                    {acc.status === 'PENDING_APPROVAL' && (
+                  {isSuperAdmin && m.role !== 'SUPER_ADMIN' && (
+                    <div className="flex items-center gap-2 shrink-0">
                       <button
                         type="button"
-                        onClick={() => onApproveAccount(acc.id)}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-sm transition"
+                        disabled={busy}
+                        onClick={() =>
+                          save(
+                            {
+                              email: m.email,
+                              role: m.role,
+                              fullName: m.full_name,
+                              driverId: m.driver_id || undefined,
+                              active: !m.active,
+                            },
+                            m.active ? `Đã khóa ${m.email}` : `Đã mở khóa ${m.email}`
+                          )
+                        }
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold transition"
                       >
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        Xác Nhận Duyệt
+                        <Lock className="w-3.5 h-3.5" />
+                        {m.active ? 'Khóa' : 'Mở khóa'}
                       </button>
-                    )}
-
-                    {acc.role !== 'SUPER_ADMIN' && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => onToggleLockAccount(acc.id)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold transition"
-                        >
-                          <Lock className="w-3.5 h-3.5" />
-                          {acc.status === 'LOCKED' ? 'Mở khóa' : 'Khóa'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onDeleteAccount(acc.id)}
-                          className="p-1.5 rounded-lg bg-rose-100 hover:bg-rose-200 text-rose-700 transition"
-                          title="Xóa tài khoản"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </>
-                    )}
-                  </div>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={async () => {
+                          if (await deleteStaff(m.user_id)) {
+                            showToast(`Đã thu hồi quyền của ${m.email}`);
+                            refresh();
+                          } else showToast('Không thu hồi được quyền');
+                        }}
+                        className="p-1.5 rounded-lg bg-rose-100 hover:bg-rose-200 text-rose-700 transition"
+                        title="Thu hồi quyền đăng nhập"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
           </div>
 
-          {/* 2. Đổi Tên đăng nhập & Mật khẩu Admin chính & Tạo tài khoản mới */}
+          {/* 2. Cấp quyền (chủ hệ thống) & đổi mật khẩu của mình */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {isSuperAdmin && (
+              <form onSubmit={handleGrant} className="bg-slate-50 rounded-xl p-4 border border-slate-200 space-y-2.5">
+                <h4 className="font-bold text-slate-900 flex items-center gap-1.5 text-xs">
+                  <UserPlus className="w-4 h-4 text-indigo-600" />
+                  Cấp quyền cho tài khoản
+                </h4>
+                <p className="text-slate-500">
+                  Tạo tài khoản trước trong Supabase Dashboard → Authentication → Users (Add user hoặc Invite).
+                  Tài xế không có email thì đặt email <code>số_điện_thoại@{DRIVER_EMAIL_DOMAIN}</code>.
+                </p>
+                <input
+                  type="text"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Email hoặc số điện thoại tài xế"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5"
+                  required
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <select
+                    value={role}
+                    onChange={(e) => setRole(e.target.value as StaffRole)}
+                    className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 font-bold"
+                  >
+                    {(Object.keys(ROLE_LABELS) as StaffRole[]).map((r) => (
+                      <option key={r} value={r}>
+                        {ROLE_LABELS[r]}
+                      </option>
+                    ))}
+                  </select>
+                  {role === 'DRIVER' ? (
+                    <select
+                      value={driverId}
+                      onChange={(e) => setDriverId(e.target.value)}
+                      className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5"
+                      required
+                    >
+                      <option value="">Chọn hồ sơ tài xế...</option>
+                      {drivers.map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {d.fullName} ({d.phone})
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      placeholder="Họ và tên..."
+                      className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5"
+                    />
+                  )}
+                </div>
+                <button
+                  type="submit"
+                  disabled={busy}
+                  className="w-full rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-1.5"
+                >
+                  + Cấp quyền
+                </button>
+              </form>
+            )}
+
             <div className="bg-blue-50/70 rounded-xl p-4 border border-blue-200 space-y-2.5">
               <h4 className="font-bold text-blue-950 flex items-center gap-1.5 text-xs">
                 <KeyRound className="w-4 h-4 text-blue-600" />
-                Đổi user & mật khẩu Admin chính ({mainAdmin?.username || 'admin'})
+                Đổi mật khẩu của tôi
               </h4>
-              <div className="grid grid-cols-2 gap-2">
-                <input
-                  type="text"
-                  value={editAdminUser}
-                  onChange={(e) => setEditAdminUser(e.target.value)}
-                  placeholder="Tên đăng nhập Admin..."
-                  className="rounded-lg border border-blue-300 bg-white px-2.5 py-1.5 text-xs font-semibold"
-                />
-                <input
-                  type="text"
-                  value={newAdminPass}
-                  onChange={(e) => setNewAdminPass(e.target.value)}
-                  placeholder="Mật khẩu mới..."
-                  className="rounded-lg border border-blue-300 bg-white px-2.5 py-1.5 text-xs font-semibold"
-                />
-              </div>
+              <input
+                type="password"
+                value={newPass}
+                onChange={(e) => setNewPass(e.target.value)}
+                placeholder="Mật khẩu mới (ít nhất 8 ký tự)"
+                autoComplete="new-password"
+                className="w-full rounded-lg border border-blue-300 bg-white px-2.5 py-1.5 text-xs font-semibold"
+              />
               <button
                 type="button"
-                onClick={() => {
-                  if (!mainAdmin) return;
-                  const finalUser = editAdminUser.trim() || mainAdmin.username;
-                  const finalPass = newAdminPass.trim() || mainAdmin.passwordHash;
-                  onUpdateAdminCredentials(mainAdmin.id, finalUser, finalPass);
-                  setNewAdminPass('');
-                }}
+                onClick={handleChangePassword}
                 className="w-full py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold"
               >
-                Lưu Tài Khoản & Mật Khẩu Admin
-              </button>
-            </div>
-
-            <form
-              onSubmit={handleCreateDirect}
-              className="bg-slate-50 rounded-xl p-4 border border-slate-200 space-y-2.5"
-            >
-              <h4 className="font-bold text-slate-900 flex items-center gap-1.5 text-xs">
-                <UserPlus className="w-4 h-4 text-indigo-600" />
-                Cấp nhanh tài khoản điều hành / kế toán
-              </h4>
-              <div className="grid grid-cols-2 gap-2">
-                <input
-                  type="text"
-                  value={newFullName}
-                  onChange={(e) => setNewFullName(e.target.value)}
-                  placeholder="Họ và tên..."
-                  className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5"
-                  required
-                />
-                <input
-                  type="text"
-                  value={newUsername}
-                  onChange={(e) => setNewUsername(e.target.value)}
-                  placeholder="Username (VD: dieuhanh2)"
-                  className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5"
-                  required
-                />
-                <input
-                  type="text"
-                  value={newPass}
-                  onChange={(e) => setNewPass(e.target.value)}
-                  placeholder="Mật khẩu..."
-                  className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5"
-                  required
-                />
-                <button
-                  type="submit"
-                  className="rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-1.5"
-                >
-                  + Cấp Quyền Ngay
-                </button>
-              </div>
-            </form>
-          </div>
-
-          {/* 3. Cấu hình Kết nối Trực tiếp Supabase Cloud */}
-          <div className="bg-emerald-50/70 rounded-xl p-4 border border-emerald-200 space-y-3">
-            <h4 className="text-xs font-bold text-emerald-950 flex items-center gap-1.5">
-              <Cloud className="w-4 h-4 text-emerald-600" />
-              Kết nối trực tiếp cơ sở dữ liệu Supabase cloud (Đồng bộ Đa Thiết Bị)
-            </h4>
-            <p className="text-xs text-emerald-800">
-              Dán <strong>Project URL</strong> và <strong>anon / public key</strong> từ Supabase của bạn vào đây để lưu và đẩy toàn bộ dữ liệu Xe, Tài xế, Lịch trình lên các bảng Supabase ngay lập tức:
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Supabase Project URL
-                </label>
-                <input
-                  type="text"
-                  value={sbUrl}
-                  onChange={(e) => setSbUrl(e.target.value)}
-                  placeholder="https://xxxx.supabase.co"
-                  className="w-full rounded-lg border border-emerald-300 bg-white px-3 py-1.5 text-xs font-mono"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Supabase Anon / Public Key
-                </label>
-                <input
-                  type="password"
-                  value={sbKey}
-                  onChange={(e) => setSbKey(e.target.value)}
-                  placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6..."
-                  className="w-full rounded-lg border border-emerald-300 bg-white px-3 py-1.5 text-xs font-mono"
-                />
-              </div>
-            </div>
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={() => onSaveSupabaseCreds(sbUrl, sbKey)}
-                className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition"
-              >
-                Lưu Kết Nối & Đẩy Dữ Liệu Lên Supabase Ngay
+                Lưu mật khẩu mới
               </button>
             </div>
           </div>

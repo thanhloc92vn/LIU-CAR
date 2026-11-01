@@ -7,7 +7,7 @@ import { buildTripLines, loadState, sendMessage } from './_shared.js';
 // Chống bấm lặp: cùng một chuyến không gửi lại trong 30 giây (theo từng máy chủ đang chạy)
 const recent = new Map();
 
-function buildMessage(trip, vehicle, driver) {
+export function buildMessage(trip, vehicle, driver) {
   const lines = [`LỊCH MỚI #${trip.tripCode}`, ...buildTripLines(trip, vehicle)];
   if (trip.bookingType !== 'SELF_DRIVE') {
     lines.push(

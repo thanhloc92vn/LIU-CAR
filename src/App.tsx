@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Bot,
   Building2,
@@ -19,7 +19,6 @@ import {
   Wallet,
 } from 'lucide-react';
 import {
-  AdminAccount,
   AuthUserSession,
   BotNotificationLog,
   Driver,
@@ -33,12 +32,16 @@ import {
 } from './types/fleet';
 import { initialFleetDatabase } from './services/seedData';
 import {
-  isSupabaseConfigured,
-  loadFromSupabase,
-  saveToSupabase,
+  driverTripAction,
+  isSignedIn,
+  loadAdminState,
+  loadDriverState,
+  loadTelegramLinks,
+  mergeState,
+  saveAdminState,
+  signOutSupabase,
 } from './services/supabaseClient';
 import { calculateTripFinancials, formatVND } from './utils/calculations';
-import { getSupabaseCredentials } from './services/supabaseClient';
 import { buildBotDispatchMessage } from './utils/aiBotEngine';
 import { ownsVehicle } from './utils/party';
 import { busyDriverIds, driverUnavailableReason, isDispatched, vehicleFitsTrip } from './utils/dispatch';
@@ -134,7 +137,7 @@ export function App() {
   const [authSession, setAuthSession] = useState<AuthUserSession | null>(() => {
     if (typeof window === 'undefined') return null;
     const saved = sessionStorage.getItem('LIUCAR_AUTH_SESSION');
-    if (saved) {
+    if (saved && isSignedIn()) {
       try {
         return JSON.parse(saved);
       } catch {
@@ -203,123 +206,53 @@ export function App() {
     }, 4500);
   };
 
-  // Load persistent DB from Supabase -> backend `/api/db` -> localStorage
+  // Tải dữ liệu sau khi đăng nhập: admin đọc toàn bộ, tài xế chỉ nhận phần của mình (DB tự lọc).
+  // Trang khách không tải DB; dữ liệu công khai lấy qua /api/public-catalog.
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const loadForRole = async (role: AuthUserSession['role']) => {
+    const data = role === 'DRIVER' ? await loadDriverState() : await loadAdminState();
+    // DB mới tạo chưa có dữ liệu: admin bắt đầu từ dữ liệu mẫu
+    if (data) setDb({ ...initialFleetDatabase, ...data, adminAccounts: [] });
+    return !!data;
+  };
+
   useEffect(() => {
+    if (!authSession) return;
     let mounted = true;
-    async function loadData() {
-      if (isSupabaseConfigured()) {
-        const cloudData = await loadFromSupabase();
-        if (cloudData && cloudData.vehicles && mounted) {
-          setDb({
-            ...initialFleetDatabase,
-            ...cloudData,
-            adminAccounts:
-              cloudData.adminAccounts && cloudData.adminAccounts.length > 0
-                ? cloudData.adminAccounts
-                : initialFleetDatabase.adminAccounts,
-          });
-          setIsLoaded(true);
-          return;
-        }
-      }
-
-      try {
-        const res = await fetch('/api/db');
-        if (res.ok) {
-          const serverData = await res.json();
-          if (serverData && serverData.vehicles && mounted) {
-            setDb({
-              ...initialFleetDatabase,
-              ...serverData,
-              adminAccounts:
-                serverData.adminAccounts && serverData.adminAccounts.length > 0
-                  ? serverData.adminAccounts
-                  : initialFleetDatabase.adminAccounts,
-            });
-            setIsLoaded(true);
-            return;
-          }
-        }
-      } catch {
-        // Fallback to localStorage
-      }
-
-      const cached = localStorage.getItem('SMARTFLEET_DB_V1');
-      if (cached && mounted) {
-        try {
-          const parsed = JSON.parse(cached);
-          if (parsed && parsed.vehicles) {
-            setDb({
-              ...initialFleetDatabase,
-              ...parsed,
-              adminAccounts:
-                parsed.adminAccounts && parsed.adminAccounts.length > 0
-                  ? parsed.adminAccounts
-                  : initialFleetDatabase.adminAccounts,
-            });
-            setIsLoaded(true);
-            return;
-          }
-        } catch {
-          // ignore
-        }
-      }
-
-      // Initialize backend with seed data
-      try {
-        await fetch('/api/db', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(initialFleetDatabase),
-        });
-      } catch {
-        // ignore
-      }
-      if (mounted) setIsLoaded(true);
-    }
-    loadData();
+    setIsLoaded(false);
+    setLoadError(null);
+    loadForRole(authSession.role).then((ok) => {
+      if (!mounted) return;
+      if (ok) setIsLoaded(true);
+      else setLoadError('Không tải được dữ liệu. Kiểm tra mạng hoặc đăng nhập lại.');
+    });
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [authSession?.id]);
 
-  // Persist DB whenever it changes
+  // Admin: lưu mỗi khi dữ liệu đổi, lần lượt từng bản. Nếu người khác vừa sửa (khách đặt, tài xế xác nhận)
+  // thì máy chủ gộp và trả bản đã gộp để hiển thị. Tài xế không ghi trực tiếp (xem runDriverAction).
+  const saveChain = useRef(Promise.resolve());
   useEffect(() => {
-    if (!isLoaded) return;
-    localStorage.setItem('SMARTFLEET_DB_V1', JSON.stringify(db));
-    if (isSupabaseConfigured()) {
-      saveToSupabase(db).catch(() => {});
-    }
-    fetch('/api/db', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(db),
-    }).catch(() => {});
-  }, [db, isLoaded]);
+    if (!isLoaded || authSession?.role !== 'ADMIN') return;
+    const sent = db;
+    saveChain.current = saveChain.current.then(async () => {
+      const r = await saveAdminState(sent);
+      if (!r.ok) showToast(`Chưa lưu được lên máy chủ: ${r.error}`);
+      else if (r.merged) {
+        const merged = r.merged;
+        setDb((prev) => mergeState(sent, prev, merged));
+      }
+    });
+  }, [db, isLoaded, authSession?.role]);
 
   useEffect(() => {
     if (!isLoaded || authSession?.role !== 'ADMIN') return;
-    const { url, anonKey } = getSupabaseCredentials();
-    if (!url || !anonKey) return;
-    fetch(`${url}/rest/v1/telegram_links?select=driver_id,linked_at`, {
-      headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` },
-    })
-      .then((r) => (r.ok ? r.json() : []))
-      .then((rows: { driver_id: string; linked_at: string }[]) =>
-        setTelegramLinks(Object.fromEntries(rows.map((x) => [x.driver_id, x.linked_at])))
-      )
-      .catch(() => {});
+    loadTelegramLinks().then((rows) =>
+      setTelegramLinks(Object.fromEntries(rows.map((x) => [x.driver_id, x.linked_at])))
+    );
   }, [isLoaded, authSession?.role, activeTab]);
-
-  const adminAccounts: AdminAccount[] = useMemo(
-    () => db.adminAccounts || initialFleetDatabase.adminAccounts || [],
-    [db.adminAccounts]
-  );
-
-  const pendingApprovalsCount = useMemo(
-    () => adminAccounts.filter((a) => a.status === 'PENDING_APPROVAL').length,
-    [adminAccounts]
-  );
 
   const activeTenant: TenantConfig = useMemo(() => {
     return (
@@ -417,23 +350,28 @@ export function App() {
   };
 
   const handleLogout = () => {
+    signOutSupabase();
     setAuthSession(null);
     sessionStorage.removeItem('LIUCAR_AUTH_SESSION');
+    setIsLoaded(false);
+    setLoadError(null);
+    setDb(initialFleetDatabase);
   };
 
-  const handleRequestAdminAccess = (
-    newAcc: Omit<AdminAccount, 'id' | 'createdAt' | 'status'>
+  // Tài xế không sửa DB trực tiếp: gửi thao tác để DB kiểm tra quyền, rồi tải lại phần dữ liệu của mình
+  const runDriverAction = async (
+    tripId: string,
+    action: 'CONFIRMED' | 'IN_PROGRESS' | 'COMPLETED' | 'ADD_EXPENSE',
+    doneMsg: string,
+    expense?: { kind: string; amount: number; note: string }
   ) => {
-    const created: AdminAccount = {
-      ...newAcc,
-      id: `ADM-${Date.now()}`,
-      status: 'PENDING_APPROVAL',
-      createdAt: new Date().toISOString().slice(0, 10),
-    };
-    setDb((prev) => ({
-      ...prev,
-      adminAccounts: [...(prev.adminAccounts || []), created],
-    }));
+    const r = await driverTripAction(tripId, action, expense);
+    if (!r.ok) {
+      showToast(r.error || 'Không thực hiện được thao tác');
+      return;
+    }
+    await loadForRole('DRIVER');
+    showToast(doneMsg);
   };
 
   // Handlers
@@ -625,6 +563,11 @@ export function App() {
   ) => {
     const trip = db.trips.find((t) => t.id === tripId);
     if (!trip) return;
+    if (!isAdmin) {
+      const msg = `Đã thêm ${formatVND(amount)} (${EXPENSE_LABELS[kind]}) vào chuyến #${trip.tripCode}`;
+      runDriverAction(tripId, 'ADD_EXPENSE', msg, { kind, amount, note });
+      return;
+    }
     const who = authSession?.fullName || '';
     const label = `${note || EXPENSE_LABELS[kind]} (${who}, ${new Date().toLocaleDateString('vi-VN')})`;
     const join = (prev: string | undefined) => (prev ? `${prev}; ${label}` : label);
@@ -650,6 +593,16 @@ export function App() {
   ) => {
     const trip = db.trips.find((t) => t.id === tripId);
     if (!trip) return;
+    const doneMsg =
+      status === 'COMPLETED'
+        ? `Chuyến #${trip.tripCode} đã hoàn thành, doanh thu và chi phí đã được ghi nhận`
+        : status === 'CONFIRMED'
+        ? `Đã xác nhận chuyến #${trip.tripCode}`
+        : `Chuyến #${trip.tripCode} bắt đầu chạy`;
+    if (!isAdmin) {
+      runDriverAction(tripId, status, doneMsg);
+      return;
+    }
     const by = authSession?.fullName || 'Điều hành';
     setDb((prev) => ({
       ...prev,
@@ -663,18 +616,16 @@ export function App() {
           : t
       ),
     }));
-    showToast(
-      status === 'COMPLETED'
-        ? `Chuyến #${trip.tripCode} đã hoàn thành, doanh thu và chi phí đã được ghi nhận`
-        : status === 'CONFIRMED'
-        ? `Đã xác nhận chuyến #${trip.tripCode}`
-        : `Chuyến #${trip.tripCode} bắt đầu chạy`
-    );
+    showToast(doneMsg);
   };
 
   const handleDriverConfirmTrip = (tripId: string, channel: 'TELEGRAM' | 'ZALO' | 'APP') => {
     const targetTrip = db.trips.find((t) => t.id === tripId);
     if (!targetTrip) return;
+    if (!isAdmin) {
+      runDriverAction(tripId, 'CONFIRMED', `Đã xác nhận lịch #${targetTrip.tripCode}`);
+      return;
+    }
     const drv = db.drivers.find((d) => d.id === targetTrip.driverId);
     const nowStr = new Date().toLocaleString('vi-VN');
 
@@ -880,61 +831,10 @@ export function App() {
   };
 
   // Handler when a public customer submits a booking from `/`
-  const handleCustomerCreateBooking = (
-    tripData: Omit<Trip, 'id' | 'createdAt'>
-  ): Trip => {
-    const newId = `TRIP-${Date.now()}`;
-    const newTrip: Trip = {
-      ...tripData,
-      id: newId,
-      createdAt: new Date().toISOString(),
-    };
-    const veh = tenantVehicles.find((v) => v.id === newTrip.vehicleId);
-    const drv = tenantDrivers.find((d) => d.id === newTrip.driverId);
-    const taggedDrvs = tenantDrivers.filter((d) =>
-      newTrip.taggedDriverIds.includes(d.id)
-    );
-
-    const botMsg = buildBotDispatchMessage(newTrip, veh, drv, taggedDrvs);
-    const newLog: BotNotificationLog = {
-      id: `LOG-${Date.now()}`,
-      tenantId: activeTenant.id,
-      tripId: newId,
-      tripCode: newTrip.tripCode,
-      timestamp: new Date().toLocaleString('vi-VN'),
-      channel: 'TELEGRAM',
-      recipientDriverId: drv?.id,
-      recipientName: drv?.fullName || 'Tài xế',
-      recipientHandle: taggedDrvs
-        .map((d) => `${d.telegramUsername} / Zalo:${d.zaloPhone}`)
-        .join(', '),
-      messageType: 'BOOKING_CONFIRM',
-      content: `[KHÁCH ĐẶT TRỰC TUYẾN TRÊN WEB]\n${botMsg}`,
-      status: 'SENT_WAITING',
-    };
-
-    setDb((prev) => ({
-      ...prev,
-      trips: [newTrip, ...prev.trips],
-      botLogs: [newLog, ...prev.botLogs],
-    }));
-
-    sendTripToTelegram(newId, newTrip.tripCode);
-
-    return newTrip;
-  };
-
   // 1. TRANG CÔNG KHAI CHO KHÁCH HÀNG ĐẶT XE (`/`) — Tách biệt hoàn toàn khỏi link Admin
   if (!isAdminRoute) {
     return (
-      <PublicCustomerBookingPortal
-        tenant={activeTenant}
-        vehicles={tenantVehicles}
-        drivers={tenantDrivers}
-        highwayPresets={db.highwayPresets}
-        trips={db.trips.filter((t) => t.tenantId === activeTenant.id)}
-        onCustomerCreateBooking={handleCustomerCreateBooking}
-      />
+      <PublicCustomerBookingPortal />
     );
   }
 
@@ -942,13 +842,27 @@ export function App() {
   if (!authSession) {
     return (
       <AuthLoginGate
-        adminAccounts={adminAccounts}
-        drivers={tenantDrivers}
         companyName={activeTenant.name}
         onLoginSuccess={handleLoginSuccess}
-        onRequestAdminAccess={handleRequestAdminAccess}
         onBackToPublicPortal={() => navigateToRoute('/')}
       />
+    );
+  }
+
+  if (!isLoaded) {
+    return (
+      <div className="min-h-screen bg-slate-100 flex flex-col items-center justify-center gap-3 p-4 text-sm text-slate-600">
+        <span>{loadError || 'Đang tải dữ liệu...'}</span>
+        {loadError && (
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="h-9 px-4 rounded-full bg-slate-900 text-white text-xs font-medium"
+          >
+            Đăng nhập lại
+          </button>
+        )}
+      </div>
     );
   }
 
@@ -1000,11 +914,6 @@ export function App() {
                 >
                   <ShieldCheck className="w-4 h-4 text-slate-500" />
                   <span className="hidden sm:inline">Bảo mật</span>
-                  {pendingApprovalsCount > 0 && (
-                    <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-xs font-semibold inline-flex items-center justify-center">
-                      {pendingApprovalsCount}
-                    </span>
-                  )}
                 </button>
               )}
               {isAdmin && (
@@ -1062,25 +971,6 @@ export function App() {
 
         {/* Main Content Area */}
         <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 py-5 space-y-5">
-          {/* Banner thông báo nếu có tài khoản đang chờ Admin xác nhận */}
-          {authSession.role === 'ADMIN' && pendingApprovalsCount > 0 && (
-            <div className="bg-amber-50 border border-amber-300 rounded-2xl p-3.5 flex flex-wrap items-center justify-between gap-2 text-xs">
-              <div className="font-bold text-amber-950 flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0" />
-                <span>
-                  Có {pendingApprovalsCount} tài khoản nhân viên đang chờ Admin xác nhận cấp quyền đăng nhập!
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsSecurityModalOpen(true)}
-                className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold transition"
-              >
-                Mở Bảng Duyệt Ngay
-              </button>
-            </div>
-          )}
-
           {/* TAB 1: LỊCH ĐẶT XE & LỘ TRÌNH DI CHUYỂN */}
           {activeTab === 'BOOKINGS' && (
             <div className="space-y-4">
@@ -1845,67 +1735,9 @@ export function App() {
       <AdminSecurityModal
         isOpen={isSecurityModalOpen}
         onClose={() => setIsSecurityModalOpen(false)}
-        adminAccounts={adminAccounts}
-        onApproveAccount={(accId) => {
-          setDb((prev) => ({
-            ...prev,
-            adminAccounts: (prev.adminAccounts || adminAccounts).map((a) =>
-              a.id === accId ? { ...a, status: 'APPROVED' } : a
-            ),
-          }));
-          showToast('Đã xác nhận phê duyệt quyền đăng nhập cho tài khoản!');
-        }}
-        onToggleLockAccount={(accId) => {
-          setDb((prev) => ({
-            ...prev,
-            adminAccounts: (prev.adminAccounts || adminAccounts).map((a) =>
-              a.id === accId
-                ? { ...a, status: a.status === 'LOCKED' ? 'APPROVED' : 'LOCKED' }
-                : a
-            ),
-          }));
-          showToast('Đã cập nhật trạng thái khóa tài khoản!');
-        }}
-        onDeleteAccount={(accId) => {
-          setDb((prev) => ({
-            ...prev,
-            adminAccounts: (prev.adminAccounts || adminAccounts).filter((a) => a.id !== accId),
-          }));
-          showToast('Đã xóa tài khoản khỏi hệ thống!');
-        }}
-        onUpdateAdminCredentials={(accId, newUsername, newPass) => {
-          setDb((prev) => ({
-            ...prev,
-            adminAccounts: (prev.adminAccounts || adminAccounts).map((a) =>
-              a.id === accId
-                ? { ...a, username: newUsername, passwordHash: newPass }
-                : a
-            ),
-          }));
-          showToast(`Đã cập nhật User (@${newUsername}) & Mật khẩu Admin thành công!`);
-        }}
-        onCreateApprovedAdmin={(newAcc) => {
-          const created: AdminAccount = {
-            ...newAcc,
-            id: `ADM-${Date.now()}`,
-            createdAt: new Date().toISOString().slice(0, 10),
-          };
-          setDb((prev) => ({
-            ...prev,
-            adminAccounts: [...(prev.adminAccounts || adminAccounts), created],
-          }));
-          showToast(`Đã cấp quyền đăng nhập cho @${created.username}!`);
-        }}
-        onSaveSupabaseCreds={async (url, anonKey) => {
-          localStorage.setItem('LIUCAR_SUPABASE_URL', url.trim());
-          localStorage.setItem('LIUCAR_SUPABASE_KEY', anonKey.trim());
-          const ok = await saveToSupabase(db);
-          if (ok) {
-            showToast('Đã kết nối và đẩy toàn bộ bảng dữ liệu lên Supabase thành công!');
-          } else {
-            showToast('Đã lưu thông tin Supabase. Vui lòng kiểm tra lại URL & Anon Key!');
-          }
-        }}
+        isSuperAdmin={authSession.subRole === 'SUPER_ADMIN'}
+        drivers={tenantDrivers}
+        showToast={showToast}
       />
     </div>
   );

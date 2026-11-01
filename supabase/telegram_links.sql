@@ -10,6 +10,4 @@ create index if not exists idx_telegram_links_chat on public.telegram_links(chat
 
 alter table public.telegram_links enable row level security;
 
--- App (khóa công khai) chỉ được đọc; không có chính sách ghi nên chỉ service_role ghi được
-drop policy if exists "Read telegram links" on public.telegram_links;
-create policy "Read telegram links" on public.telegram_links for select to anon, authenticated using (true);
+-- Chỉ máy chủ (service_role) ghi; quyền đọc cho admin nằm trong auth_rls.sql

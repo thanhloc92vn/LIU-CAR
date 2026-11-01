@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Calendar,
   Car,
@@ -15,7 +15,6 @@ import {
   X,
 } from 'lucide-react';
 import {
-  Driver,
   FUEL_TYPE_LABELS,
   HighwayPreset,
   RouteType,
@@ -26,13 +25,16 @@ import {
 } from '../types/fleet';
 import { formatVND } from '../utils/calculations';
 
-interface PublicCustomerBookingPortalProps {
-  tenant: TenantConfig;
-  vehicles: Vehicle[];
-  drivers: Driver[];
-  highwayPresets: HighwayPreset[];
-  trips: Trip[];
-  onCustomerCreateBooking: (tripData: Omit<Trip, 'id' | 'createdAt'>) => Trip;
+// Kết quả tra cứu do máy chủ trả (chỉ phần khách cần xem)
+interface LookupTrip {
+  tripCode: string;
+  status: Trip['status'];
+  tripDate: string;
+  departureTime: string;
+  pickupLocation: string;
+  dropoffLocation: string;
+  vehicle: Pick<Vehicle, 'seatCategory' | 'brand' | 'model' | 'plateNumber'> | null;
+  driver: { fullName: string; phone: string } | null;
 }
 
 const SEAT_OPTIONS: ('ALL' | SeatCategory)[] = [
@@ -44,14 +46,25 @@ const SEAT_OPTIONS: ('ALL' | SeatCategory)[] = [
   '16 chỗ',
 ];
 
-export const PublicCustomerBookingPortal: React.FC<PublicCustomerBookingPortalProps> = ({
-  tenant,
-  vehicles,
-  drivers,
-  highwayPresets,
-  trips,
-  onCustomerCreateBooking,
-}) => {
+// Trang khách không đọc DB trực tiếp: dữ liệu công khai và đặt lịch đi qua máy chủ (api/public-*.js)
+export const PublicCustomerBookingPortal: React.FC = () => {
+  const [catalog, setCatalog] = useState<{
+    tenant: TenantConfig;
+    vehicles: Vehicle[];
+    highwayPresets: HighwayPreset[];
+  } | null>(null);
+  const [catalogError, setCatalogError] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/public-catalog')
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then(setCatalog)
+      .catch(() => setCatalogError(true));
+  }, []);
+
+  const tenant = catalog?.tenant;
+  const vehicles = catalog?.vehicles || [];
+  const highwayPresets = catalog?.highwayPresets || [];
   const [seatFilter, setSeatFilter] = useState<'ALL' | SeatCategory>('ALL');
   const [brandFilter, setBrandFilter] = useState<string>('ALL');
   const [serviceType, setServiceType] = useState<'WITH_DRIVER' | 'SELF_DRIVE'>('WITH_DRIVER');
@@ -75,8 +88,14 @@ export const PublicCustomerBookingPortal: React.FC<PublicCustomerBookingPortalPr
   // Confirmation receipt state
   const [createdBooking, setCreatedBooking] = useState<Trip | null>(null);
 
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
   // Lookup state for customer
-  const [lookupQuery, setLookupQuery] = useState('');
+  const [lookupCode, setLookupCode] = useState('');
+  const [lookupPhone, setLookupPhone] = useState('');
+  const [lookupResult, setLookupResult] = useState<LookupTrip[] | null>(null);
+  const [lookupError, setLookupError] = useState<string | null>(null);
   const [showLookupModal, setShowLookupModal] = useState(false);
 
   const brands = Array.from(new Set(vehicles.map((v) => v.brand)));
@@ -87,22 +106,31 @@ export const PublicCustomerBookingPortal: React.FC<PublicCustomerBookingPortalPr
     return true;
   });
 
-  const matchedLookupTrips = lookupQuery.trim()
-    ? trips.filter(
-        (t) =>
-          t.customerPhone.includes(lookupQuery.trim()) ||
-          t.tripCode.toLowerCase().includes(lookupQuery.trim().toLowerCase())
-      )
-    : [];
+  // Phải nhập đúng cả mã chuyến và số điện thoại đặt xe
+  const handleLookup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLookupError(null);
+    setLookupResult(null);
+    try {
+      const res = await fetch(
+        `/api/public-lookup?code=${encodeURIComponent(lookupCode.trim())}&phone=${encodeURIComponent(lookupPhone.trim())}`
+      );
+      const data = await res.json().catch(() => null);
+      if (res.ok) setLookupResult(data?.trips || []);
+      else setLookupError(data?.error || 'Chưa tra cứu được, vui lòng thử lại.');
+    } catch {
+      setLookupError('Không kết nối được máy chủ, vui lòng thử lại.');
+    }
+  };
 
   const handleOpenBookVehicle = (veh: Vehicle) => {
     setSelectedVehicle(veh);
     setCreatedBooking(null);
   };
 
-  const handleCustomerSubmit = (e: React.FormEvent) => {
+  const handleCustomerSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedVehicle) return;
+    if (!selectedVehicle || !tenant) return;
 
     const preset =
       highwayPresets.find((p) => p.id === selectedPresetId) || highwayPresets[0];
@@ -134,18 +162,10 @@ export const PublicCustomerBookingPortal: React.FC<PublicCustomerBookingPortalPr
       (estimatedFare * (tenant.defaultDispatchFeePercent || 10)) / 100
     );
 
-    const tripCode = `KH-${tripDate.slice(5, 7)}${tripDate.slice(8, 10)}-${Math.floor(
-      100 + Math.random() * 900
-    )}`;
-
-    const created = onCustomerCreateBooking({
-      tenantId: tenant.id,
-      tripCode,
+    // Máy chủ tự đặt mã chuyến, trạng thái và kiểm tra lại dữ liệu; chỉ gửi phần khách điền và giá tạm tính
+    const booking = {
       bookingType: serviceType,
       vehicleId: selectedVehicle.id,
-      // Khách đặt xong chưa có tài xế: điều hành sẽ chọn và điều phối trên hệ thống
-      driverId: '',
-      taggedDriverIds: [],
       customerName: customerName.trim(),
       customerPhone: customerPhone.trim(),
       customerCccd: customerCccd.trim() || undefined,
@@ -160,32 +180,45 @@ export const PublicCustomerBookingPortal: React.FC<PublicCustomerBookingPortalPr
       distanceKm,
       isRoundTrip,
       baseFareRevenue: estimatedFare,
-      surchargeRevenue: 0,
-      paymentCollectedBy: 'COMPANY_BANK',
       autoHighwayToll,
       autoFuelQuota,
       autoDispatchFee,
-      manualExpenseTotal: 0,
-      manualExpenseNote: '',
-      parkingFee: 0,
-      parkingNote: '',
-      trafficFineFee: 0,
-      trafficFineNote: '',
-      otherRiskFee: 0,
-      otherRiskNote: '',
-      status: 'PENDING_CONFIRM',
-      botChannel: 'BOTH',
-      notes: customerNotes.trim()
-        ? `[Khách đặt trực tuyến]: ${customerNotes.trim()}`
-        : '[Khách đặt trực tuyến trên Web/App]',
-    });
+      notes: customerNotes.trim(),
+    };
 
-    setCreatedBooking(created);
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      const res = await fetch('/api/public-booking', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(booking),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.trip) {
+        setSubmitError(data?.error || 'Chưa gửi được lịch đặt, vui lòng thử lại hoặc gọi hotline.');
+        return;
+      }
+      setCreatedBooking(data.trip);
+    } catch {
+      setSubmitError('Không kết nối được máy chủ, vui lòng thử lại hoặc gọi hotline.');
+      return;
+    } finally {
+      setSubmitting(false);
+    }
     setCustomerName('');
     setCustomerPhone('');
     setDropoffLocation('');
     setCustomerNotes('');
   };
+
+  if (!tenant) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 text-sm text-slate-500">
+        {catalogError ? 'Chưa tải được danh sách xe. Vui lòng tải lại trang.' : 'Đang tải danh sách xe...'}
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col">
@@ -685,6 +718,12 @@ export const PublicCustomerBookingPortal: React.FC<PublicCustomerBookingPortalPr
                   />
                 </div>
 
+                {submitError && (
+                  <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 font-semibold">
+                    {submitError}
+                  </div>
+                )}
+
                 <div className="flex justify-end gap-2 pt-2">
                   <button
                     type="button"
@@ -695,9 +734,10 @@ export const PublicCustomerBookingPortal: React.FC<PublicCustomerBookingPortalPr
                   </button>
                   <button
                     type="submit"
+                    disabled={submitting}
                     className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold transition"
                   >
-                    Xác Nhận Đặt Lịch Xe
+                    {submitting ? 'Đang gửi...' : 'Xác Nhận Đặt Lịch Xe'}
                   </button>
                 </div>
               </form>
@@ -721,32 +761,58 @@ export const PublicCustomerBookingPortal: React.FC<PublicCustomerBookingPortalPr
               </button>
             </div>
             <div className="p-5 space-y-4 text-xs">
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  Nhập Số Điện Thoại đặt xe hoặc Mã chuyến (#KH-... / #MP-...)
-                </label>
-                <input
-                  type="text"
-                  value={lookupQuery}
-                  onChange={(e) => setLookupQuery(e.target.value)}
-                  placeholder="VD: 0903888111 hoặc MP-2610-001"
-                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-semibold"
-                />
-              </div>
+              <form onSubmit={handleLookup} className="space-y-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">Mã chuyến</label>
+                    <input
+                      type="text"
+                      value={lookupCode}
+                      onChange={(e) => setLookupCode(e.target.value)}
+                      placeholder="VD: KH-1101-123"
+                      className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-semibold"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">Số điện thoại đặt xe</label>
+                    <input
+                      type="tel"
+                      value={lookupPhone}
+                      onChange={(e) => setLookupPhone(e.target.value)}
+                      placeholder="VD: 0903888111"
+                      className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-semibold"
+                      required
+                    />
+                  </div>
+                </div>
+                <button
+                  type="submit"
+                  className="w-full py-2.5 rounded-xl bg-slate-900 text-white font-bold"
+                >
+                  Tra cứu
+                </button>
+              </form>
 
-              {lookupQuery.trim() && (
+              {lookupError && (
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 font-semibold">
+                  {lookupError}
+                </div>
+              )}
+
+              {lookupResult && (
                 <div className="space-y-2.5 max-h-72 overflow-y-auto">
-                  {matchedLookupTrips.length === 0 ? (
+                  {lookupResult.length === 0 ? (
                     <div className="p-4 text-center text-slate-500 bg-slate-50 rounded-xl">
                       Không tìm thấy lịch đặt xe nào với thông tin này.
                     </div>
                   ) : (
-                    matchedLookupTrips.map((tr) => {
-                      const veh = vehicles.find((v) => v.id === tr.vehicleId);
-                      const drv = drivers.find((d) => d.id === tr.driverId);
+                    lookupResult.map((tr) => {
+                      const veh = tr.vehicle;
+                      const drv = tr.driver;
                       return (
                         <div
-                          key={tr.id}
+                          key={tr.tripCode}
                           className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-1.5"
                         >
                           <div className="flex items-center justify-between">
@@ -769,10 +835,12 @@ export const PublicCustomerBookingPortal: React.FC<PublicCustomerBookingPortalPr
                               [{veh?.seatCategory}] {veh?.brand} {veh?.model} ({veh?.plateNumber})
                             </strong>
                           </div>
-                          <div>
-                            • Tài xế phụ trách: <strong>{drv?.fullName}</strong> — SĐT:{' '}
-                            <strong>{drv?.phone}</strong>
-                          </div>
+                          {drv && (
+                            <div>
+                              • Tài xế phụ trách: <strong>{drv.fullName}</strong> — SĐT:{' '}
+                              <strong>{drv.phone}</strong>
+                            </div>
+                          )}
                         </div>
                       );
                     })

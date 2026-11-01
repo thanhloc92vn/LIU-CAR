@@ -133,38 +133,4 @@ alter table public.drivers enable row level security;
 alter table public.trips enable row level security;
 alter table public.fleet_state enable row level security;
 
-drop policy if exists "Public access tenants" on public.tenants;
-create policy "Public access tenants" on public.tenants for all to anon, authenticated using (true) with check (true);
-
-drop policy if exists "Public access vehicles" on public.vehicles;
-create policy "Public access vehicles" on public.vehicles for all to anon, authenticated using (true) with check (true);
-
-drop policy if exists "Public access drivers" on public.drivers;
-create policy "Public access drivers" on public.drivers for all to anon, authenticated using (true) with check (true);
-
-drop policy if exists "Public access trips" on public.trips;
-create policy "Public access trips" on public.trips for all to anon, authenticated using (true) with check (true);
-
-drop policy if exists "Public access fleet_state" on public.fleet_state;
-create policy "Public access fleet_state" on public.fleet_state for all to anon, authenticated using (true) with check (true);
-
-grant all on table public.tenants to anon, authenticated;
-grant all on table public.vehicles to anon, authenticated;
-grant all on table public.drivers to anon, authenticated;
-grant all on table public.trips to anon, authenticated;
-grant all on table public.fleet_state to anon, authenticated;
--- Liên kết tài xế với tài khoản Telegram. Chỉ máy chủ (service_role) được ghi; app đọc để hiện trạng thái.
-create table if not exists public.telegram_links (
-  driver_id text primary key,
-  chat_id bigint not null,
-  code_used text not null,
-  telegram_username text,
-  linked_at timestamptz not null default now()
-);
-create index if not exists idx_telegram_links_chat on public.telegram_links(chat_id);
-
-alter table public.telegram_links enable row level security;
-
--- App (khóa công khai) chỉ được đọc; không có chính sách ghi nên chỉ service_role ghi được
-drop policy if exists "Read telegram links" on public.telegram_links;
-create policy "Read telegram links" on public.telegram_links for select to anon, authenticated using (true);
+-- Quyền truy cập (chỉ admin/tài xế đã đăng nhập) nằm trong auth_rls.sql — chạy file đó sau file này.

@@ -50,6 +50,29 @@ export async function saveLink({ driverId, chatId, code, username }) {
   return res.ok;
 }
 
+// Gọi hàm SQL (RPC) bằng khóa máy chủ
+export async function rpc(name, args) {
+  const res = await fetch(`${supabaseUrl()}/rest/v1/rpc/${name}`, {
+    method: 'POST',
+    headers: headers({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(args),
+  });
+  return res.ok;
+}
+
+// Giới hạn số lần gọi theo IP trong một khoảng thời gian (theo từng máy chủ đang chạy)
+export function rateLimited(store, req, max, windowMs) {
+  const ip = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || 'unknown';
+  const now = Date.now();
+  const entry = store.get(ip);
+  if (!entry || now - entry.first > windowMs) {
+    store.set(ip, { count: 1, first: now });
+    return false;
+  }
+  entry.count += 1;
+  return entry.count > max;
+}
+
 export async function sendMessage(token, chatId, text, replyTo) {
   const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: 'POST',
