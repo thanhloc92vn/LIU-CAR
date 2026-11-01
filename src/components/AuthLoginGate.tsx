@@ -91,11 +91,6 @@ export const AuthLoginGate: React.FC<AuthLoginGateProps> = ({
               <KeyRound className="w-4 h-4" />
               <span>{loading ? 'Đang xác thực...' : 'Đăng nhập'}</span>
             </button>
-
-            <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-200 text-xs text-slate-600">
-              Tài khoản do chủ hệ thống cấp. Quên mật khẩu hoặc chưa có tài khoản, vui lòng liên hệ điều hành.
-              Tài xế chỉ xem và thao tác chuyến được giao cho mình.
-            </div>
           </form>
 
           {onBackToPublicPortal && (
