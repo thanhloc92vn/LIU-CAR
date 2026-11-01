@@ -7,7 +7,7 @@ export const hasServiceKey = () => Boolean(process.env.SUPABASE_SERVICE_KEY);
 // Có khóa dịch vụ thì dùng (ghi được); không thì dùng khóa công khai (chỉ đọc)
 const key = () => process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || DEFAULT_SUPABASE_KEY;
 
-const headers = (extra = {}) => ({ apikey: key(), Authorization: `Bearer ${key()}`, ...extra });
+export const headers = (extra = {}) => ({ apikey: key(), Authorization: `Bearer ${key()}`, ...extra });
 
 export async function loadState() {
   const res = await fetch(`${supabaseUrl()}/rest/v1/fleet_state?id=eq.MAIN_STATE&select=payload`, {

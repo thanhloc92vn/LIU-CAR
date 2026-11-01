@@ -215,6 +215,27 @@ export function setStaff(m: {
   });
 }
 
+// Tạo tài khoản đăng nhập / đặt lại mật khẩu: chạy trên máy chủ (cần khóa dịch vụ), chỉ chủ hệ thống gọi được
+export async function adminUsers(
+  body:
+    | { action: 'create'; email: string; password: string; role: StaffRole; fullName: string; driverId?: string }
+    | { action: 'reset_password'; userId: string; password: string }
+): Promise<{ ok: boolean; error?: string }> {
+  const token = await accessToken();
+  if (!token) return { ok: false, error: 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại' };
+  try {
+    const res = await fetch('/api/admin-users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => null);
+    return res.ok ? { ok: true } : { ok: false, error: data?.error || `Lỗi ${res.status}` };
+  } catch {
+    return { ok: false, error: 'Không kết nối được máy chủ' };
+  }
+}
+
 export async function deleteStaff(userId: string): Promise<boolean> {
   try {
     const res = await api(`/rest/v1/staff?user_id=eq.${userId}`, { method: 'DELETE' });

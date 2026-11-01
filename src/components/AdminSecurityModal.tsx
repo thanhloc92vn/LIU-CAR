@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Copy, ExternalLink, Globe, KeyRound, Lock, ShieldCheck, Trash2, UserCheck, UserPlus, X } from 'lucide-react';
 import { Driver } from '../types/fleet';
 import {
+  adminUsers,
   changeMyPassword,
   deleteStaff,
   DRIVER_EMAIL_DOMAIN,
@@ -26,7 +27,8 @@ const ROLE_LABELS: Record<StaffRole, string> = {
   DRIVER: 'Tài xế',
 };
 
-// Người dùng nằm trong Supabase Auth (mật khẩu do Supabase giữ). Ở đây chỉ cấp/thu quyền trong bảng staff.
+// Người dùng nằm trong Supabase Auth (mật khẩu do Supabase giữ). Chủ hệ thống tạo tài khoản, cấp/thu quyền
+// và đặt lại mật khẩu ở đây; việc tạo/đặt mật khẩu chạy trên máy chủ (api/admin-users.js).
 export const AdminSecurityModal: React.FC<AdminSecurityModalProps> = ({
   isOpen,
   onClose,
@@ -38,8 +40,11 @@ export const AdminSecurityModal: React.FC<AdminSecurityModalProps> = ({
   const [staff, setStaffList] = useState<StaffMember[]>([]);
   const [busy, setBusy] = useState(false);
 
-  // Cấp quyền cho tài khoản đã tạo trong Supabase Auth
+  // Tạo tài khoản (có mật khẩu) hoặc cấp quyền cho tài khoản đã có (để trống mật khẩu)
   const [email, setEmail] = useState('');
+  const [grantPass, setGrantPass] = useState('');
+  const [resetFor, setResetFor] = useState<string | null>(null);
+  const [resetPass, setResetPass] = useState('');
   const [fullName, setFullName] = useState('');
   const [role, setRole] = useState<StaffRole>('DISPATCHER');
   const [driverId, setDriverId] = useState('');
@@ -86,19 +91,38 @@ export const AdminSecurityModal: React.FC<AdminSecurityModalProps> = ({
     // Tài xế có thể nhập số điện thoại; tài khoản tương ứng là <số>@taixe.haydixe.vn
     const fullEmail = login.includes('@') ? login : `${login.replace(/\D/g, '')}@${DRIVER_EMAIL_DOMAIN}`;
     const drv = drivers.find((d) => d.id === driverId);
-    const ok = await save(
-      {
-        email: fullEmail,
-        role,
-        fullName: fullName.trim() || (role === 'DRIVER' ? drv?.fullName || '' : ''),
-        driverId: role === 'DRIVER' ? driverId : undefined,
-        active: true,
-      },
-      `Đã cấp quyền ${ROLE_LABELS[role]} cho ${fullEmail}`
-    );
+    const member = {
+      email: fullEmail,
+      role,
+      fullName: fullName.trim() || (role === 'DRIVER' ? drv?.fullName || '' : ''),
+      driverId: role === 'DRIVER' ? driverId : undefined,
+    };
+    let ok: boolean;
+    if (grantPass) {
+      setBusy(true);
+      const r = await adminUsers({ action: 'create', password: grantPass, ...member });
+      setBusy(false);
+      ok = r.ok;
+      showToast(r.ok ? `Đã tạo tài khoản ${ROLE_LABELS[role]} ${login}` : r.error || 'Không tạo được tài khoản');
+      if (ok) refresh();
+    } else {
+      ok = await save({ ...member, active: true }, `Đã cấp quyền ${ROLE_LABELS[role]} cho ${fullEmail}`);
+    }
     if (ok) {
       setEmail('');
       setFullName('');
+      setGrantPass('');
+    }
+  };
+
+  const handleResetPassword = async (userId: string) => {
+    setBusy(true);
+    const r = await adminUsers({ action: 'reset_password', userId, password: resetPass });
+    setBusy(false);
+    showToast(r.ok ? 'Đã đặt mật khẩu mới' : r.error || 'Không đặt lại được mật khẩu');
+    if (r.ok) {
+      setResetFor(null);
+      setResetPass('');
     }
   };
 
@@ -230,10 +254,41 @@ export const AdminSecurityModal: React.FC<AdminSecurityModalProps> = ({
                       {m.email}
                       {m.role === 'DRIVER' && ` • Hồ sơ tài xế: ${driverName(m.driver_id)}`}
                     </div>
+                    {resetFor === m.user_id && (
+                      <div className="flex items-center gap-2 pt-1">
+                        <input
+                          type="text"
+                          value={resetPass}
+                          onChange={(e) => setResetPass(e.target.value)}
+                          placeholder="Mật khẩu mới (ít nhất 8 ký tự)"
+                          autoComplete="new-password"
+                          className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5"
+                        />
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => handleResetPassword(m.user_id)}
+                          className="px-2.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold"
+                        >
+                          Lưu
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {isSuperAdmin && m.role !== 'SUPER_ADMIN' && (
                     <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setResetFor(resetFor === m.user_id ? null : m.user_id);
+                          setResetPass('');
+                        }}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold transition"
+                      >
+                        <KeyRound className="w-3.5 h-3.5" />
+                        Đặt lại mật khẩu
+                      </button>
                       <button
                         type="button"
                         disabled={busy}
@@ -281,11 +336,11 @@ export const AdminSecurityModal: React.FC<AdminSecurityModalProps> = ({
               <form onSubmit={handleGrant} className="bg-slate-50 rounded-xl p-4 border border-slate-200 space-y-2.5">
                 <h4 className="font-bold text-slate-900 flex items-center gap-1.5 text-xs">
                   <UserPlus className="w-4 h-4 text-indigo-600" />
-                  Cấp quyền cho tài khoản
+                  Tạo tài khoản & cấp quyền
                 </h4>
                 <p className="text-slate-500">
-                  Tạo tài khoản trước trong Supabase Dashboard → Authentication → Users (Add user hoặc Invite).
-                  Tài xế không có email thì đặt email <code>số_điện_thoại@{DRIVER_EMAIL_DOMAIN}</code>.
+                  Nhân viên nhập email, tài xế nhập số điện thoại (đăng nhập bằng số điện thoại đó). Để trống mật khẩu
+                  nếu tài khoản đã có sẵn và chỉ cần cấp hoặc đổi quyền.
                 </p>
                 <input
                   type="text"
@@ -294,6 +349,14 @@ export const AdminSecurityModal: React.FC<AdminSecurityModalProps> = ({
                   placeholder="Email hoặc số điện thoại tài xế"
                   className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5"
                   required
+                />
+                <input
+                  type="text"
+                  value={grantPass}
+                  onChange={(e) => setGrantPass(e.target.value)}
+                  placeholder="Mật khẩu đăng nhập (ít nhất 8 ký tự)"
+                  autoComplete="new-password"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5"
                 />
                 <div className="grid grid-cols-2 gap-2">
                   <select
@@ -336,7 +399,7 @@ export const AdminSecurityModal: React.FC<AdminSecurityModalProps> = ({
                   disabled={busy}
                   className="w-full rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-1.5"
                 >
-                  + Cấp quyền
+                  {grantPass ? '+ Tạo tài khoản' : '+ Cấp quyền'}
                 </button>
               </form>
             )}
