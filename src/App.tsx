@@ -932,7 +932,7 @@ export function App() {
         </header>
 
         {toastMsg && (
-          <div className="fixed bottom-24 md:bottom-6 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2rem)] max-w-md bg-slate-900/95 text-white px-4 py-3 rounded-2xl shadow-xl text-sm font-medium">
+          <div className="fixed bottom-24 md:bottom-6 left-1/2 -translate-x-1/2 z-[60] w-[calc(100%-2rem)] max-w-md bg-slate-900/95 text-white px-4 py-3 rounded-2xl shadow-xl text-sm font-medium">
             {toastMsg}
           </div>
         )}
