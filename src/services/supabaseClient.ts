@@ -144,7 +144,18 @@ export async function signInWithSupabaseAuth(
     });
     const data = await res.json();
     if (!res.ok || !data?.access_token) {
-      return { ok: false, error: 'Sai email / số điện thoại hoặc mật khẩu' };
+      const code = data?.error_code;
+      return {
+        ok: false,
+        error:
+          code === 'invalid_credentials'
+            ? 'Sai email / số điện thoại hoặc mật khẩu'
+            : code === 'email_not_confirmed'
+            ? 'Tài khoản chưa được xác nhận email. Liên hệ chủ hệ thống.'
+            : res.status === 429
+            ? 'Đăng nhập sai quá nhiều lần. Vui lòng thử lại sau vài phút.'
+            : `Không đăng nhập được: ${data?.msg || data?.message || `lỗi ${res.status}`}`,
+      };
     }
     storeAuth(data);
 
