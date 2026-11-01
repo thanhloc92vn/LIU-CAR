@@ -384,13 +384,16 @@ export function App() {
     const veh = db.vehicles.find((v) => v.id === trip.vehicleId);
     const drv = isDispatched(trip) ? db.drivers.find((d) => d.id === trip.driverId) : undefined;
     const total = calculateTripFinancials(trip).grossRevenue;
+    const vnDate = (d: string) => d.split('-').reverse().join('/'); // 2026-11-20 -> 20/11/2026
     const text = [
       `${activeTenant.name} xin xác nhận lịch đặt xe của anh/chị ${trip.customerName}:`,
       `- Mã chuyến: #${trip.tripCode}`,
       `- Hình thức: ${trip.bookingType === 'SELF_DRIVE' ? 'Thuê tự lái' : 'Có tài xế'}`,
       veh ? `- Xe: ${veh.brand} ${veh.model} (${veh.plateNumber}), ${veh.seatCategory}` : '',
-      `- Thời gian: ${trip.departureTime} ngày ${trip.tripDate}${
-        trip.tripEndDate && trip.tripEndDate !== trip.tripDate ? ` đến ${trip.returnTime} ngày ${trip.tripEndDate}` : ''
+      `- Thời gian: ${trip.departureTime} ngày ${vnDate(trip.tripDate)}${
+        trip.tripEndDate && trip.tripEndDate !== trip.tripDate
+          ? ` đến ${trip.returnTime} ngày ${vnDate(trip.tripEndDate)}`
+          : ''
       }`,
       `- Lộ trình: ${trip.pickupLocation} → ${trip.dropoffLocation}`,
       drv ? `- Tài xế: ${drv.fullName} - ${drv.phone}` : '',
