@@ -8,6 +8,7 @@ import {
   Globe,
   LogOut,
   MapPin,
+  MessageCircle,
   Navigation,
   Plus,
   Route,
@@ -377,6 +378,33 @@ export function App() {
   // Handlers
   // Báo chuyến vào nhóm Telegram qua máy chủ (token không nằm ở trình duyệt).
   // Đợi vài giây để chuyến kịp lưu lên Supabase, thử lại một lần nếu máy chủ chưa thấy chuyến.
+  // Xác nhận cho khách qua Zalo cá nhân (miễn phí, không cần gói Zalo OA): chép sẵn nội dung rồi mở chat với số khách.
+  // zalo.me không nhận nội dung soạn sẵn nên điều hành dán vào khung chat rồi bấm gửi.
+  const openCustomerZalo = (trip: Trip) => {
+    const veh = db.vehicles.find((v) => v.id === trip.vehicleId);
+    const drv = isDispatched(trip) ? db.drivers.find((d) => d.id === trip.driverId) : undefined;
+    const total = calculateTripFinancials(trip).grossRevenue;
+    const text = [
+      `${activeTenant.name} xin xác nhận lịch đặt xe của anh/chị ${trip.customerName}:`,
+      `- Mã chuyến: #${trip.tripCode}`,
+      `- Hình thức: ${trip.bookingType === 'SELF_DRIVE' ? 'Thuê tự lái' : 'Có tài xế'}`,
+      veh ? `- Xe: ${veh.brand} ${veh.model} (${veh.plateNumber}), ${veh.seatCategory}` : '',
+      `- Thời gian: ${trip.departureTime} ngày ${trip.tripDate}${
+        trip.tripEndDate && trip.tripEndDate !== trip.tripDate ? ` đến ${trip.returnTime} ngày ${trip.tripEndDate}` : ''
+      }`,
+      `- Lộ trình: ${trip.pickupLocation} → ${trip.dropoffLocation}`,
+      drv ? `- Tài xế: ${drv.fullName} - ${drv.phone}` : '',
+      total > 0 ? `- Giá cước: ${formatVND(total)}` : '',
+      `Cần hỗ trợ vui lòng gọi hotline ${activeTenant.hotline}. Cảm ơn anh/chị!`,
+    ]
+      .filter(Boolean)
+      .join('\n');
+    // Chép trước khi mở tab mới, vì trình duyệt chỉ cho chép khi trang còn đang được chọn
+    navigator.clipboard?.writeText(text).catch(() => {});
+    window.open(`https://zalo.me/${trip.customerPhone.replace(/\D/g, '')}`, '_blank', 'noopener');
+    showToast('Đã chép nội dung xác nhận. Dán vào khung chat Zalo của khách rồi bấm gửi.');
+  };
+
   const sendTripToTelegram = (tripId: string, tripCode: string, manual = false) => {
     // Chạy trên máy (localhost) không có máy chủ bot nên không báo lỗi mỗi lần tạo chuyến
     const isLocal = ['localhost', '127.0.0.1'].includes(window.location.hostname);
@@ -1120,6 +1148,17 @@ export function App() {
                             <Printer className="w-3.5 h-3.5" />
                             <span>Phiếu / Zalo</span>
                           </button>
+                          {isAdmin && trip.status !== 'CANCELLED' && trip.customerPhone && (
+                            <button
+                              type="button"
+                              onClick={() => openCustomerZalo(trip)}
+                              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-full bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-medium transition"
+                              title="Mở Zalo của khách, nội dung xác nhận đã được chép sẵn để dán"
+                            >
+                              <MessageCircle className="w-3.5 h-3.5" />
+                              <span>Zalo khách</span>
+                            </button>
+                          )}
                           {isAdmin && trip.status !== 'CANCELLED' && (
                             <button
                               type="button"
