@@ -24,7 +24,10 @@ export default async function handler(req, res) {
     res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=300');
     return res.status(200).json({
       tenant: pick(tenant, TENANT_FIELDS),
-      vehicles: (state.vehicles || []).filter((v) => v.tenantId === tenant.id).map((v) => pick(v, VEHICLE_FIELDS)),
+      // Trang khách chỉ hiện ảnh đầu tiên, nên chỉ gửi ảnh đó cho nhẹ
+      vehicles: (state.vehicles || [])
+        .filter((v) => v.tenantId === tenant.id)
+        .map((v) => ({ ...pick(v, VEHICLE_FIELDS), images: (v.images || []).slice(0, 1) })),
       highwayPresets: (state.highwayPresets || []).map((p) => pick(p, PRESET_FIELDS)),
     });
   } catch {

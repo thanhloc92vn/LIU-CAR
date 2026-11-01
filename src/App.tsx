@@ -235,11 +235,14 @@ export function App() {
   // Admin: lưu mỗi khi dữ liệu đổi, lần lượt từng bản. Nếu người khác vừa sửa (khách đặt, tài xế xác nhận)
   // thì máy chủ gộp và trả bản đã gộp để hiển thị. Tài xế không ghi trực tiếp (xem runDriverAction).
   const saveChain = useRef(Promise.resolve());
+  const pendingSaves = useRef(0);
   useEffect(() => {
     if (!isLoaded || authSession?.role !== 'ADMIN') return;
     const sent = db;
+    pendingSaves.current++;
     saveChain.current = saveChain.current.then(async () => {
       const r = await saveAdminState(sent);
+      pendingSaves.current--;
       if (!r.ok) showToast(`Chưa lưu được lên máy chủ: ${r.error}`);
       else if (r.merged) {
         const merged = r.merged;
@@ -247,6 +250,15 @@ export function App() {
       }
     });
   }, [db, isLoaded, authSession?.role]);
+
+  // F5/đóng tab khi bản lưu (có thể kèm ảnh xe) chưa gửi xong thì mất thay đổi: hỏi lại trước khi rời trang
+  useEffect(() => {
+    const warn = (e: BeforeUnloadEvent) => {
+      if (pendingSaves.current > 0) e.preventDefault();
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, []);
 
   useEffect(() => {
     if (!isLoaded || authSession?.role !== 'ADMIN') return;
