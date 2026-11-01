@@ -842,7 +842,6 @@ export function App() {
   if (!authSession) {
     return (
       <AuthLoginGate
-        companyName={activeTenant.name}
         onLoginSuccess={handleLoginSuccess}
         onBackToPublicPortal={() => navigateToRoute('/')}
       />

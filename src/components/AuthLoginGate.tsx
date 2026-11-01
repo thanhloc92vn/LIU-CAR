@@ -1,17 +1,15 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { AlertCircle, Car, KeyRound, ShieldCheck } from 'lucide-react';
 import { AuthUserSession } from '../types/fleet';
 import { signInWithSupabaseAuth } from '../services/supabaseClient';
 
 interface AuthLoginGateProps {
-  companyName: string;
   onLoginSuccess: (session: AuthUserSession) => void;
   onBackToPublicPortal?: () => void;
 }
 
 // Đăng nhập bằng Supabase Auth. Quyền (admin hay tài xế) lấy từ bảng staff, không kiểm tra ở trình duyệt.
 export const AuthLoginGate: React.FC<AuthLoginGateProps> = ({
-  companyName,
   onLoginSuccess,
   onBackToPublicPortal,
 }) => {
@@ -19,6 +17,15 @@ export const AuthLoginGate: React.FC<AuthLoginGateProps> = ({
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  // Chưa đăng nhập thì không đọc được DB: lấy tên công ty từ dữ liệu công khai
+  const [companyName, setCompanyName] = useState('');
+
+  useEffect(() => {
+    fetch('/api/public-catalog')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setCompanyName(d?.tenant?.name || ''))
+      .catch(() => {});
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
