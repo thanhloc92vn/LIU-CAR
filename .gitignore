@@ -8,6 +8,9 @@ dist/
 build/
 *.tsbuildinfo
 
+# Mô hình 3D gốc tải từ Sketchfab (rất nặng); bản đã nén nằm ở public/models
+assets-src/
+
 # Local environment files
 .env
 .env.local

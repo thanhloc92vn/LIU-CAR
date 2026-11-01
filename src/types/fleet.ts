@@ -63,6 +63,7 @@ export interface Vehicle {
   inspectionExpiry: string; // Hạn đăng kiểm
   insuranceExpiry: string;  // Hạn bảo hiểm
   notes?: string;
+  images?: string[];        // Tối đa 3 ảnh (data URL); ảnh đầu tiên là thumbnail
 }
 
 export interface Driver {

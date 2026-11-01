@@ -1,12 +1,19 @@
 import React, { useState } from 'react';
 import { ArrowRight, Edit3, MapPin, Plus, Trash2, X } from 'lucide-react';
-import { JourneyPricing, JourneyRoute, JourneyService, RouteType } from '../types/fleet';
+import {
+  HighwayPreset,
+  JourneyPricing,
+  JourneyRoute,
+  JourneyService,
+  RouteType,
+} from '../types/fleet';
 import { formatVND } from '../utils/calculations';
 import { useConfirm } from './ConfirmDialog';
 import { DEFAULT_BATTERY_RATE_PER_KM, EMPTY_PRICING, getJourneyPricing } from '../utils/journey';
 
 interface JourneyRoutesTabProps {
   routes: JourneyRoute[];
+  highwayPresets: HighwayPreset[];
   activeTenantId: string;
   canEdit: boolean;
   onSave: (route: Omit<JourneyRoute, 'id'>, existingId?: string) => void;
@@ -224,6 +231,7 @@ const RouteCard: React.FC<{
 
 export const JourneyRoutesTab: React.FC<JourneyRoutesTabProps> = ({
   routes,
+  highwayPresets,
   activeTenantId,
   canEdit,
   onSave,
@@ -270,6 +278,34 @@ export const JourneyRoutesTab: React.FC<JourneyRoutesTabProps> = ({
         ? { ...prev, pricing: { ...prev.pricing, [profile]: { ...prev.pricing[profile], [key]: value } } }
         : prev
     );
+
+  const highwayOptions = highwayPresets.filter((p) => p.routeType !== 'NATIONAL_ROAD');
+  const nationalOptions = highwayPresets.filter((p) => p.routeType !== 'HIGHWAY');
+
+  // Gõ tay hoặc chọn từ kho ETC; chọn đúng một tuyến trong kho thì tự điền cước một chiều / khứ hồi.
+  const setRoadName = (kind: 'highway' | 'national', name: string) =>
+    setForm((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, [kind === 'highway' ? 'highwayName' : 'nationalRoadName']: name };
+      const preset = (kind === 'highway' ? highwayOptions : nationalOptions).find(
+        (p) => p.name === name
+      );
+      if (!preset) return next;
+      const keys: [keyof JourneyPricing, keyof JourneyPricing] =
+        kind === 'highway'
+          ? ['tollOneWay', 'tollRoundTrip']
+          : ['nationalTollOneWay', 'nationalTollRoundTrip'];
+      const oneWay = String(preset.baseToll4To7Seats || '');
+      const roundTrip = String(preset.baseToll4To7Seats * 2 || '');
+      const pricing = { ...prev.pricing };
+      (['DN', 'SN', 'DH', 'SH'] as ProfileKey[]).forEach((pk) => {
+        // Bảng ngày lễ đang để trống thì giữ trống (hệ thống sẽ dùng giá ngày thường)
+        const isHoliday = pk === 'DH' || pk === 'SH';
+        if (isHoliday && isEmptyPricing(toPricing(prev.pricing[pk]))) return;
+        pricing[pk] = { ...prev.pricing[pk], [keys[0]]: oneWay, [keys[1]]: roundTrip };
+      });
+      return { ...next, pricing };
+    });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -454,10 +490,18 @@ export const JourneyRoutesTab: React.FC<JourneyRoutesTabProps> = ({
                   </label>
                   <input
                     className={inputCls}
+                    list="etc-highway-options"
                     value={form.highwayName}
-                    onChange={(e) => setField('highwayName', e.target.value)}
-                    placeholder="VD: Long Thành - Dầu Giây"
+                    onChange={(e) => setRoadName('highway', e.target.value)}
+                    placeholder={
+                      highwayOptions.length ? 'Chọn từ kho ETC hoặc gõ tay' : 'VD: Long Thành - Dầu Giây'
+                    }
                   />
+                  <datalist id="etc-highway-options">
+                    {highwayOptions.map((p) => (
+                      <option key={p.id} value={p.name} />
+                    ))}
+                  </datalist>
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">
@@ -465,10 +509,18 @@ export const JourneyRoutesTab: React.FC<JourneyRoutesTabProps> = ({
                   </label>
                   <input
                     className={inputCls}
+                    list="etc-national-options"
                     value={form.nationalRoadName}
-                    onChange={(e) => setField('nationalRoadName', e.target.value)}
-                    placeholder="VD: QL1A - Trạm BOT Biên Hòa"
+                    onChange={(e) => setRoadName('national', e.target.value)}
+                    placeholder={
+                      nationalOptions.length ? 'Chọn từ kho ETC hoặc gõ tay' : 'VD: QL1A - Trạm BOT Biên Hòa'
+                    }
                   />
+                  <datalist id="etc-national-options">
+                    {nationalOptions.map((p) => (
+                      <option key={p.id} value={p.name} />
+                    ))}
+                  </datalist>
                 </div>
               </div>
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useState } from 'react';
 import {
   Calendar,
   Car,
@@ -24,6 +24,10 @@ import {
   Vehicle,
 } from '../types/fleet';
 import { formatVND } from '../utils/calculations';
+import { SiteFooter } from './SiteFooter';
+
+// three.js nặng: tách chunk riêng để trang khách hiện ra trước
+const CarShowcase3D = lazy(() => import('./CarShowcase3D'));
 
 // Kết quả tra cứu do máy chủ trả (chỉ phần khách cần xem)
 interface LookupTrip {
@@ -254,16 +258,12 @@ export const PublicCustomerBookingPortal: React.FC = () => {
       </header>
 
       {/* Hero */}
-      <section className="bg-white px-4 pt-10 pb-8 sm:pt-16 sm:pb-12">
-        <div className="max-w-3xl mx-auto text-center space-y-4">
-          <h2 className="text-3xl sm:text-5xl font-semibold tracking-tight text-slate-900">
-            Đặt xe tự lái & xe có tài xế
-          </h2>
-          <p className="text-base sm:text-lg text-slate-600 max-w-xl mx-auto">
-            Xe 4, 5, 7, 9 chỗ Limousine và 16 chỗ. Chọn lộ trình cao tốc hoặc quốc lộ với chi phí rõ ràng, xác nhận qua Zalo và Telegram.
-          </p>
-
-          <div className="pt-3 flex justify-center">
+      <section className="bg-gradient-to-b from-white to-slate-50 pb-8 sm:pb-12">
+        <Suspense fallback={<div className="h-[440px] sm:h-[560px]" />}>
+          <CarShowcase3D />
+        </Suspense>
+        <div className="max-w-3xl mx-auto text-center px-4">
+          <div className="pt-2 flex justify-center">
             <div className="inline-flex rounded-full bg-slate-100 p-1">
               <button
                 type="button"
@@ -293,7 +293,7 @@ export const PublicCustomerBookingPortal: React.FC = () => {
       </section>
 
       {/* Main Vehicle Catalog */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 space-y-6">
+      <main id="danh-sach-xe" className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 space-y-6">
         {/* Filter Bar */}
         <div className="bg-white rounded-2xl p-3 shadow-sm flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
@@ -338,6 +338,14 @@ export const PublicCustomerBookingPortal: React.FC = () => {
               key={veh.id}
               className="bg-white rounded-2xl shadow-sm hover:shadow-md transition overflow-hidden flex flex-col justify-between"
             >
+              <div>
+              {veh.images?.[0] && (
+                <img
+                  src={veh.images[0]}
+                  alt={`${veh.brand} ${veh.model}`}
+                  className="w-full aspect-[16/9] object-cover"
+                />
+              )}
               <div className="p-5 space-y-3">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-1.5">
@@ -400,6 +408,7 @@ export const PublicCustomerBookingPortal: React.FC = () => {
                   </div>
                 </div>
               </div>
+              </div>
 
               <div className="px-5 pb-5">
                 <button
@@ -417,14 +426,14 @@ export const PublicCustomerBookingPortal: React.FC = () => {
       </main>
 
       {/* Footer (Không lộ nút Admin, chỉ có thông tin công ty) */}
-      <footer className="text-slate-500 text-xs py-8 px-4 border-t border-slate-200 mt-10">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div>
-            <strong className="text-slate-800">{tenant.name}</strong> • MST: {tenant.taxCode}
-          </div>
-          <div>Hotline điều hành 24/7: {tenant.hotline}</div>
-        </div>
-      </footer>
+      <SiteFooter
+        hotline={tenant.hotline}
+        onSelectService={(s) => {
+          setServiceType(s);
+          document.getElementById('danh-sach-xe')?.scrollIntoView({ behavior: 'smooth' });
+        }}
+        onOpenLookup={() => setShowLookupModal(true)}
+      />
 
       {/* Modal Đặt Lịch Xe Dành Cho Khách Hàng */}
       {selectedVehicle && (

@@ -90,18 +90,9 @@ export function parseNaturalBookingCommand(
   }
 
   // Match Highway Preset
-  let matchedHighwayPreset = highwayPresets.find((hp) => {
-    if (lower.includes('phan thiết') || lower.includes('mũi né') || lower.includes('dầu giây')) return hp.id === 'HW-01';
-    if (lower.includes('cần thơ') || lower.includes('mỹ thuận') || lower.includes('trung lương')) return hp.id === 'HW-02';
-    if (lower.includes('vũng tàu')) return hp.id === 'HW-03';
-    if (lower.includes('hải phòng') || lower.includes('hạ long')) return hp.id === 'HW-04';
-    if (lower.includes('đà lạt') || lower.includes('bảo lộc')) return hp.id === 'NR-02';
-    return false;
-  });
-
-  if (!matchedHighwayPreset) {
-    matchedHighwayPreset = highwayPresets.find((hp) => hp.routeType === routeType) || highwayPresets[0];
-  }
+  const matchedHighwayPreset =
+    highwayPresets.find((hp) => hp.routeType === routeType) ||
+    highwayPresets[0];
 
   // 4. Parse Monetary Amounts (Doanh thu, Phí đậu xe, Phí phạt, Nhập tay)
   const extractMoneyAfterKeyword = (keywords: string[]): number => {

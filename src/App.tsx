@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Bot,
-  Building2,
   Calendar,
   Car,
   ChevronRight,
@@ -9,6 +8,7 @@ import {
   Globe,
   LogOut,
   MapPin,
+  Navigation,
   Plus,
   Route,
   Printer,
@@ -800,36 +800,6 @@ export function App() {
     showToast(`Đã lưu hồ sơ tài xế ${newDrv.fullName} (GPLX hạng ${newDrv.licenseClass})!`);
   };
 
-  const handleCloneNewTenant = (newTenantData: Omit<TenantConfig, 'id' | 'createdAt'>) => {
-    const newTenantId = `TENANT-${Date.now()}`;
-    const newTenant: TenantConfig = {
-      ...newTenantData,
-      id: newTenantId,
-      createdAt: new Date().toISOString().slice(0, 10),
-    };
-
-    const clonedVehicles: Vehicle[] = tenantVehicles.slice(0, 3).map((v, idx) => ({
-      ...v,
-      id: `VEH-${Date.now()}-${idx}`,
-      tenantId: newTenantId,
-    }));
-
-    const clonedDrivers: Driver[] = tenantDrivers.slice(0, 2).map((d, idx) => ({
-      ...d,
-      id: `DRV-${Date.now()}-${idx}`,
-      tenantId: newTenantId,
-    }));
-
-    setDb((prev) => ({
-      ...prev,
-      tenants: [...prev.tenants, newTenant],
-      activeTenantId: newTenantId,
-      vehicles: [...prev.vehicles, ...clonedVehicles],
-      drivers: [...prev.drivers, ...clonedDrivers],
-    }));
-    showToast(`Đã nhân bản thành công hệ thống cho "${newTenant.name}"!`);
-  };
-
   // Handler when a public customer submits a booking from `/`
   // 1. TRANG CÔNG KHAI CHO KHÁCH HÀNG ĐẶT XE (`/`) — Tách biệt hoàn toàn khỏi link Admin
   if (!isAdminRoute) {
@@ -889,10 +859,10 @@ export function App() {
                   type="button"
                   onClick={() => setIsSaaSModalOpen(true)}
                   className="hidden sm:inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-xs font-medium text-slate-700 hover:bg-slate-200/70 transition"
-                  title="Chuyển hoặc nhân bản doanh nghiệp"
+                  title="Bảng định mức tuyến cao tốc (ETC)"
                 >
-                  <Building2 className="w-4 h-4 text-slate-500" />
-                  <span>{db.tenants.length} chi nhánh</span>
+                  <Navigation className="w-4 h-4 text-slate-500" />
+                  <span>Định mức ETC</span>
                 </button>
               )}
               <button
@@ -1530,6 +1500,7 @@ export function App() {
           {isAdmin && activeTab === 'JOURNEYS' && (
             <JourneyRoutesTab
               routes={(db.journeyRoutes || []).filter((r) => r.tenantId === activeTenant.id)}
+              highwayPresets={db.highwayPresets}
               activeTenantId={activeTenant.id}
               canEdit={authSession.role === 'ADMIN'}
               onSave={(data, existingId) => {
@@ -1708,15 +1679,7 @@ export function App() {
       <MultiTenantSaaSModal
         isOpen={isSaaSModalOpen}
         onClose={() => setIsSaaSModalOpen(false)}
-        tenants={db.tenants}
-        activeTenantId={activeTenant.id}
         highwayPresets={db.highwayPresets}
-        onSwitchTenant={(tid) => {
-          setDb((prev) => ({ ...prev, activeTenantId: tid }));
-          setIsSaaSModalOpen(false);
-          showToast('Đã chuyển đổi sang dữ liệu của chi nhánh/doanh nghiệp được chọn!');
-        }}
-        onCloneNewTenant={handleCloneNewTenant}
         onAddHighwayPreset={(presetData) => {
           const newPreset: HighwayPreset = {
             ...presetData,
@@ -1727,6 +1690,27 @@ export function App() {
             highwayPresets: [...prev.highwayPresets, newPreset],
           }));
           showToast(`Đã thêm tuyến định mức "${newPreset.name}"!`);
+        }}
+        onUpdateHighwayPreset={(preset) => {
+          setDb((prev) => ({
+            ...prev,
+            highwayPresets: prev.highwayPresets.map((p) => (p.id === preset.id ? preset : p)),
+          }));
+          showToast(`Đã cập nhật tuyến "${preset.name}"!`);
+        }}
+        onDeleteHighwayPreset={async (preset) => {
+          const ok = await confirm({
+            title: `Xóa tuyến "${preset.name}"?`,
+            message: 'Các chuyến đã tạo không bị ảnh hưởng.',
+            confirmLabel: 'Xóa tuyến',
+            tone: 'danger',
+          });
+          if (!ok) return;
+          setDb((prev) => ({
+            ...prev,
+            highwayPresets: prev.highwayPresets.filter((p) => p.id !== preset.id),
+          }));
+          showToast(`Đã xóa tuyến "${preset.name}"!`);
         }}
       />
 

@@ -3,10 +3,12 @@ import {
   Car,
   Edit3,
   FileCheck2,
+  ImagePlus,
   Plus,
   ShieldCheck,
   Trash2,
   Users,
+  X,
 } from 'lucide-react';
 import {
   Driver,
@@ -20,6 +22,7 @@ import {
 } from '../types/fleet';
 import { normalizePlate, ownerPlates } from '../utils/party';
 import { calculateTripFinancials, formatVND } from '../utils/calculations';
+import { fileToCompressedDataUrl, MAX_VEHICLE_IMAGES } from '../utils/image';
 
 const FUEL_BADGE_CLASS: Record<FuelType, string> = {
   ELECTRIC: 'bg-teal-100 text-teal-800 border border-teal-300',
@@ -98,6 +101,25 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
   const [vFuelType, setVFuelType] = useState<FuelType>('GASOLINE');
   const [vTollMult, setVTollMult] = useState(1.0);
   const [vStatus, setVStatus] = useState<Vehicle['status']>('AVAILABLE');
+  const [vImages, setVImages] = useState<string[]>([]);
+  const [vImageError, setVImageError] = useState('');
+
+  const handlePickImages = async (files: FileList | null) => {
+    if (!files) return;
+    setVImageError('');
+    const room = MAX_VEHICLE_IMAGES - vImages.length;
+    const picked = Array.from(files).slice(0, room);
+    const added: string[] = [];
+    for (const f of picked) {
+      try {
+        added.push(await fileToCompressedDataUrl(f));
+      } catch (err: any) {
+        setVImageError(err.message);
+      }
+    }
+    if (files.length > room) setVImageError(`Chỉ được tối đa ${MAX_VEHICLE_IMAGES} ảnh`);
+    if (added.length) setVImages((prev) => [...prev, ...added]);
+  };
 
   // Add / Edit Driver Modal
   const [showAddDriver, setShowAddDriver] = useState(false);
@@ -140,6 +162,8 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
     setVFuelType(veh.fuelType || 'GASOLINE');
     setVTollMult(veh.highwayTollMultiplier);
     setVStatus(veh.status);
+    setVImages(veh.images || []);
+    setVImageError('');
     setShowAddVehicle(true);
   };
 
@@ -180,6 +204,7 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
         fuelType: vFuelType,
         highwayTollMultiplier: Number(vTollMult) || 1.0,
         status: vStatus,
+        images: vImages,
       });
     } else {
       onAddVehicle({
@@ -201,6 +226,7 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
         inspectionExpiry: '2027-06-30',
         insuranceExpiry: '2027-06-30',
         notes: 'Xe mới thêm vào đội xe',
+        images: vImages,
       });
     }
     setShowAddVehicle(false);
@@ -316,6 +342,8 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
               setEditingVehicle(null);
               setVPlate('');
               setVModel('');
+              setVImages([]);
+              setVImageError('');
               setShowAddVehicle(true);
             }}
             className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-sm transition"
@@ -416,6 +444,13 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
                   className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 flex flex-col justify-between hover:border-blue-400 transition"
                 >
                   <div>
+                    {veh.images?.[0] && (
+                      <img
+                        src={veh.images[0]}
+                        alt={`${veh.brand} ${veh.model}`}
+                        className="w-full h-36 object-cover rounded-xl mb-3"
+                      />
+                    )}
                     <div className="flex items-center justify-between gap-2 mb-2.5">
                       <div className="flex items-center gap-1.5">
                         <span className="px-2.5 py-0.5 rounded-full bg-slate-900 text-white text-xs font-medium">
@@ -734,7 +769,7 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
               </button>
             </div>
             <form onSubmit={handleCreateOrSaveVehicle} className="p-4 space-y-3 text-xs">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-[1fr_1fr_88px] gap-3">
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">Hãng xe *</label>
                   <input
@@ -753,6 +788,18 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
                     value={vModel}
                     onChange={(e) => setVModel(e.target.value)}
                     placeholder="Innova / Xpander / Vios"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Đời xe *</label>
+                  <input
+                    type="number"
+                    min={1990}
+                    max={new Date().getFullYear() + 1}
+                    value={vYear}
+                    onChange={(e) => setVYear(Number(e.target.value))}
                     className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
                     required
                   />
@@ -873,6 +920,67 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
                     className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Ảnh xe (tối đa {MAX_VEHICLE_IMAGES} ảnh, mỗi ảnh dưới 4MB)
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {vImages.map((src, i) => (
+                    <div
+                      key={i}
+                      className={`relative aspect-[4/3] rounded-lg overflow-hidden border-2 ${
+                        i === 0 ? 'border-blue-600' : 'border-slate-200'
+                      }`}
+                    >
+                      <img src={src} alt="" className="w-full h-full object-cover" />
+                      {i === 0 ? (
+                        <span className="absolute bottom-0 inset-x-0 bg-blue-600 text-white text-[10px] font-bold text-center py-0.5">
+                          Ảnh đại diện
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setVImages((prev) => [src, ...prev.filter((_, j) => j !== i)])
+                          }
+                          className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[10px] font-semibold py-0.5"
+                        >
+                          Đặt làm đại diện
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        title="Xóa ảnh"
+                        onClick={() => setVImages((prev) => prev.filter((_, j) => j !== i))}
+                        className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                  {vImages.length < MAX_VEHICLE_IMAGES && (
+                    <label className="aspect-[4/3] rounded-lg border-2 border-dashed border-slate-300 hover:border-blue-500 text-slate-400 hover:text-blue-600 flex flex-col items-center justify-center gap-1 cursor-pointer transition">
+                      <ImagePlus className="w-5 h-5" />
+                      <span className="text-[10px] font-semibold">Thêm ảnh</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        className="hidden"
+                        onChange={(e) => {
+                          handlePickImages(e.target.files);
+                          e.target.value = '';
+                        }}
+                      />
+                    </label>
+                  )}
+                </div>
+                {vImageError && <p className="text-red-600 mt-1">{vImageError}</p>}
+                <p className="text-slate-400 mt-1">
+                  Ảnh đầu tiên tự làm thumbnail; bấm "Đặt làm đại diện" để đổi.
+                </p>
               </div>
 
               <div className="flex justify-end gap-2 pt-2">

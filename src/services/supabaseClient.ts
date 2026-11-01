@@ -272,8 +272,36 @@ export async function loadAdminState(): Promise<FleetDatabase | null> {
     if (!res.ok) return null;
     const rows = await res.json();
     if (!rows?.[0]) return null;
-    base = { payload: rows[0].payload, updatedAt: rows[0].updated_at };
-    return rows[0].payload as FleetDatabase;
+    const payload = rows[0].payload as FleetDatabase;
+    base = { payload, updatedAt: rows[0].updated_at };
+    // Bảng `tenants` là nguồn chính cho thông tin đơn vị: sửa/xóa trực tiếp trên Supabase
+    // phải có hiệu lực, nếu không lần lưu kế tiếp sẽ ghi đè lại từ bản snapshot cũ.
+    try {
+      const tRes = await api('/rest/v1/tenants?select=*');
+      const tRows = tRes.ok ? await tRes.json() : null;
+      if (Array.isArray(tRows) && tRows.length > 0 && payload.tenants) {
+        return {
+          ...payload,
+          tenants: payload.tenants
+            .filter((t) => tRows.some((r: any) => r.id === t.id))
+            .map((t) => {
+              const r = tRows.find((x: any) => x.id === t.id);
+              return {
+                ...t,
+                name: r.name ?? t.name,
+                shortName: r.short_name ?? t.shortName,
+                taxCode: r.tax_code ?? t.taxCode,
+                hotline: r.hotline ?? t.hotline,
+                bankInfo: r.bank_info ?? t.bankInfo,
+                defaultDispatchFeePercent: r.default_dispatch_fee_percent ?? t.defaultDispatchFeePercent,
+              };
+            }),
+        };
+      }
+    } catch {
+      // dùng tenants trong snapshot
+    }
+    return payload;
   } catch {
     return null;
   }
