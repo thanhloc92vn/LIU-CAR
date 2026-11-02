@@ -416,7 +416,7 @@ export const JourneyRoutesTab: React.FC<JourneyRoutesTabProps> = ({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-md p-3 overflow-y-auto">
           <form
             onSubmit={handleSubmit}
-            className="w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden my-auto"
+            className="w-full max-w-3xl bg-white rounded-2xl shadow-2xl overflow-hidden my-auto"
           >
             <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
               <h3 className="font-semibold">{editingId ? 'Sửa hành trình' : 'Thêm hành trình'}</h3>

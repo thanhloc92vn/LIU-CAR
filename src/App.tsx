@@ -41,6 +41,8 @@ import {
   mergeState,
   saveAdminState,
   signOutSupabase,
+  trackDeletions,
+  uploadVehicleImage,
 } from './services/supabaseClient';
 import { calculateTripFinancials, formatVND } from './utils/calculations';
 import { buildBotDispatchMessage } from './utils/aiBotEngine';
@@ -50,6 +52,8 @@ import { BookingModal } from './components/BookingModal';
 import { FinanceSettlementTab } from './components/FinanceSettlementTab';
 import { FleetAndDriversTab } from './components/FleetAndDriversTab';
 import { JourneyRoutesTab } from './components/JourneyRoutesTab';
+import { SiteContentTab } from './components/SiteContentTab';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { AIBotZaloTelegramTab } from './components/AIBotZaloTelegramTab';
 import { MultiTenantSaaSModal } from './components/MultiTenantSaaSModal';
 import { AuthLoginGate } from './components/AuthLoginGate';
@@ -60,14 +64,15 @@ import { DriverEarningsTab } from './components/DriverEarningsTab';
 import { PrintableVoucherModal } from './components/PrintableVoucherModal';
 import { PublicCustomerBookingPortal } from './components/PublicCustomerBookingPortal';
 
-type ActiveTab = 'BOOKINGS' | 'JOURNEYS' | 'FINANCE' | 'FLEET_DRIVERS' | 'AI_BOT';
+type ActiveTab = 'BOOKINGS' | 'JOURNEYS' | 'FINANCE' | 'FLEET_DRIVERS' | 'AI_BOT' | 'SITE_CONTENT';
 
 const NAV_TABS: { id: ActiveTab; label: string; short: string; icon: React.ElementType }[] = [
   { id: 'BOOKINGS', label: 'Lịch đặt xe', short: 'Lịch xe', icon: Calendar },
   { id: 'JOURNEYS', label: 'Hành trình chuyến', short: 'Hành trình', icon: Route },
   { id: 'FINANCE', label: 'Doanh thu & đối soát', short: 'Đối soát', icon: Wallet },
   { id: 'FLEET_DRIVERS', label: 'Đội xe & tài xế', short: 'Đội xe', icon: Users },
-  { id: 'AI_BOT', label: 'Bot Zalo / Telegram', short: 'Bot', icon: Bot },
+  { id: 'AI_BOT', label: 'Bot Telegram', short: 'Bot', icon: Bot },
+  { id: 'SITE_CONTENT', label: 'Nội dung trang khách', short: 'Trang khách', icon: Globe },
 ];
 
 // Dải trạng thái chuyến: Đã xác nhận, Đang chạy, Hoàn thành. Bước đã qua màu nhạt, bước hiện tại màu đậm.
@@ -236,8 +241,15 @@ export function App() {
   // thì máy chủ gộp và trả bản đã gộp để hiển thị. Tài xế không ghi trực tiếp (xem runDriverAction).
   const saveChain = useRef(Promise.resolve());
   const pendingSaves = useRef(0);
+  const lastDb = useRef<FleetDatabase | null>(null);
   useEffect(() => {
-    if (!isLoaded || authSession?.role !== 'ADMIN') return;
+    if (!isLoaded || authSession?.role !== 'ADMIN') {
+      lastDb.current = null;
+      return;
+    }
+    // Ghi nhận mục người dùng vừa xóa, để khi gộp chỉ những mục này mới bị bỏ khỏi server
+    if (lastDb.current) trackDeletions(lastDb.current, db);
+    lastDb.current = db;
     const sent = db;
     pendingSaves.current++;
     saveChain.current = saveChain.current.then(async () => {
@@ -250,6 +262,38 @@ export function App() {
       }
     });
   }, [db, isLoaded, authSession?.role]);
+
+  // Ảnh xe cũ còn nằm trong DB dạng base64: chuyển lên Storage một lần sau khi tải rồi thay bằng link,
+  // để mỗi lần lưu không phải gửi lại cả MB ảnh
+  const imagesMigrated = useRef(false);
+  useEffect(() => {
+    if (!isLoaded || authSession?.role !== 'ADMIN' || imagesMigrated.current) return;
+    const inline = [
+      ...new Set(db.vehicles.flatMap((v) => (v.images || []).filter((src) => src.startsWith('data:')))),
+    ];
+    if (!inline.length) return;
+    imagesMigrated.current = true;
+    (async () => {
+      const moved = new Map<string, string>();
+      for (const src of inline) {
+        try {
+          moved.set(src, await uploadVehicleImage(src));
+        } catch (err: any) {
+          showToast(`Chưa chuyển được ảnh xe lên Storage: ${err.message}`);
+          break;
+        }
+      }
+      if (!moved.size) return;
+      setDb((prev) => ({
+        ...prev,
+        vehicles: prev.vehicles.map((v) =>
+          v.images?.some((src) => moved.has(src))
+            ? { ...v, images: v.images.map((src) => moved.get(src) || src) }
+            : v
+        ),
+      }));
+    })();
+  }, [db.vehicles, isLoaded, authSession?.role]);
 
   // F5/đóng tab khi bản lưu (có thể kèm ảnh xe) chưa gửi xong thì mất thay đổi: hỏi lại trước khi rời trang
   useEffect(() => {
@@ -983,6 +1027,7 @@ export function App() {
 
         {/* Main Content Area */}
         <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 py-5 space-y-5">
+          <ErrorBoundary resetKey={activeTab}>
           {/* TAB 1: LỊCH ĐẶT XE & LỘ TRÌNH DI CHUYỂN */}
           {activeTab === 'BOOKINGS' && (
             <div className="space-y-4">
@@ -1578,6 +1623,22 @@ export function App() {
             />
           )}
 
+          {/* TAB: NỘI DUNG TRANG KHÁCH */}
+          {isAdmin && activeTab === 'SITE_CONTENT' && (
+            <SiteContentTab
+              key={activeTenant.id}
+              content={activeTenant.siteContent}
+              canEdit={authSession.role === 'ADMIN'}
+              onSave={(siteContent) => {
+                setDb((prev) => ({
+                  ...prev,
+                  tenants: prev.tenants.map((t) => (t.id === activeTenant.id ? { ...t, siteContent } : t)),
+                }));
+                showToast('Đã lưu nội dung trang khách');
+              }}
+            />
+          )}
+
           {/* TAB 2: ĐỐI SOÁT DOANH THU, CHI PHÍ TỰ CẤN TRỪ, PHẠT & ĐẬU XE */}
           {activeTab === 'FINANCE' && !isAdmin && (
             <DriverEarningsTab
@@ -1663,6 +1724,10 @@ export function App() {
               onDriverConfirmTrip={handleDriverConfirmTrip}
               onTagReassignDriver={handleTagReassignDriver}
               onBotQuickAddRisk={handleBotQuickAddRisk}
+              onDeleteBotLogs={(ids) => {
+                setDb((prev) => ({ ...prev, botLogs: (prev.botLogs || []).filter((l) => !ids.includes(l.id)) }));
+                showToast(ids.length > 1 ? `Đã xóa ${ids.length} bản ghi nhật ký` : 'Đã xóa bản ghi nhật ký');
+              }}
               onSaveTelegramConfig={(token, chatId) => {
                 setDb((prev) => ({
                   ...prev,
@@ -1676,6 +1741,7 @@ export function App() {
               }}
             />
           )}
+          </ErrorBoundary>
         </main>
 
         {/* Thanh điều hướng dưới (di động) */}

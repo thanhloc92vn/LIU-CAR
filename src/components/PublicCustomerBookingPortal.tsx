@@ -1,3 +1,5 @@
+import { PROVINCES } from '../data/provinces';
+import { resolveSiteContent } from '../data/siteContent';
 import React, { lazy, Suspense, useEffect, useState } from 'react';
 import {
   Calendar,
@@ -25,6 +27,8 @@ import {
 } from '../types/fleet';
 import { formatVND } from '../utils/calculations';
 import { SiteFooter } from './SiteFooter';
+import { FloatingContact } from './FloatingContact';
+import { TravelInfoSections } from './TravelInfoSections';
 
 // three.js nặng: tách chunk riêng để trang khách hiện ra trước
 const CarShowcase3D = lazy(() => import('./CarShowcase3D'));
@@ -67,6 +71,7 @@ export const PublicCustomerBookingPortal: React.FC = () => {
   }, []);
 
   const tenant = catalog?.tenant;
+  const siteContent = resolveSiteContent(tenant?.siteContent);
   const vehicles = catalog?.vehicles || [];
   const highwayPresets = catalog?.highwayPresets || [];
   const [seatFilter, setSeatFilter] = useState<'ALL' | SeatCategory>('ALL');
@@ -82,7 +87,7 @@ export const PublicCustomerBookingPortal: React.FC = () => {
   const [tripDate, setTripDate] = useState('2026-11-01');
   const [departureTime, setDepartureTime] = useState('07:30');
   const [returnTime, setReturnTime] = useState('19:30');
-  const [pickupLocation, setPickupLocation] = useState('TP.HCM');
+  const [pickupLocation, setPickupLocation] = useState('');
   const [dropoffLocation, setDropoffLocation] = useState('');
   const [routeType, setRouteType] = useState<RouteType>('HIGHWAY');
   const [selectedPresetId, setSelectedPresetId] = useState<string>(highwayPresets[0]?.id || '');
@@ -177,7 +182,7 @@ export const PublicCustomerBookingPortal: React.FC = () => {
       tripDate,
       departureTime,
       returnTime,
-      pickupLocation: pickupLocation.trim() || 'TP.HCM',
+      pickupLocation: pickupLocation.trim(),
       dropoffLocation: dropoffLocation.trim() || preset?.name || 'Theo lộ trình',
       routeType,
       routeDetail: preset?.name || 'Theo lộ trình khách chọn',
@@ -425,6 +430,21 @@ export const PublicCustomerBookingPortal: React.FC = () => {
         </div>
       </main>
 
+      <TravelInfoSections
+        destinations={siteContent.destinations}
+        faqs={siteContent.faqs}
+        onPickDestination={(name) => {
+          setDropoffLocation(name);
+          document.getElementById('danh-sach-xe')?.scrollIntoView({ behavior: 'smooth' });
+        }}
+      />
+
+      <FloatingContact
+        hotline={tenant.hotline}
+        facebookUrl={siteContent.facebookUrl}
+        onBook={() => document.getElementById('danh-sach-xe')?.scrollIntoView({ behavior: 'smooth' })}
+      />
+
       {/* Footer (Không lộ nút Admin, chỉ có thông tin công ty) */}
       <SiteFooter
         hotline={tenant.hotline}
@@ -641,6 +661,11 @@ export const PublicCustomerBookingPortal: React.FC = () => {
                   </div>
                 </div>
 
+                <datalist id="province-options">
+                  {PROVINCES.map((p) => (
+                    <option key={p} value={p} />
+                  ))}
+                </datalist>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block font-bold text-slate-700 mb-1">Điểm đón khách *</label>
@@ -648,7 +673,8 @@ export const PublicCustomerBookingPortal: React.FC = () => {
                       type="text"
                       value={pickupLocation}
                       onChange={(e) => setPickupLocation(e.target.value)}
-                      placeholder="Quận 1, TP.HCM..."
+                      list="province-options"
+                      placeholder="Chọn tỉnh/thành hoặc gõ địa chỉ đón..."
                       className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
                       required
                     />
@@ -659,7 +685,8 @@ export const PublicCustomerBookingPortal: React.FC = () => {
                       type="text"
                       value={dropoffLocation}
                       onChange={(e) => setDropoffLocation(e.target.value)}
-                      placeholder="Phan Thiết / Vũng Tàu / Cần Thơ..."
+                      list="province-options"
+                      placeholder="Chọn tỉnh/thành hoặc gõ điểm đến..."
                       className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
                       required
                     />

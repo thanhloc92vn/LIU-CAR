@@ -2,7 +2,7 @@
 // Không có tài xế, chuyến hay thông tin khách. Đọc bằng SUPABASE_SERVICE_KEY vì khóa công khai không còn đọc được DB.
 import { hasServiceKey, loadState } from './_shared.js';
 
-const TENANT_FIELDS = ['id', 'name', 'shortName', 'hotline', 'taxCode', 'defaultDispatchFeePercent'];
+const TENANT_FIELDS = ['id', 'name', 'shortName', 'hotline', 'taxCode', 'defaultDispatchFeePercent', 'siteContent'];
 const VEHICLE_FIELDS = [
   'id', 'tenantId', 'plateNumber', 'brand', 'model', 'vehicleType', 'seatCategory', 'year', 'color',
   'serviceMode', 'dailyRateSelfDrive', 'fuelType', 'fuelCostPerKm', 'highwayTollMultiplier', 'status',

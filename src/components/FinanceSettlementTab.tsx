@@ -799,7 +799,7 @@ export const FinanceSettlementTab: React.FC<FinanceSettlementTabProps> = ({
                     className={
                       isMobile
                         ? 'grid grid-cols-2 gap-2 text-xs bg-slate-50 p-2.5 rounded-xl border border-slate-200'
-                        : 'grid grid-cols-4 gap-3 text-xs bg-slate-50 p-3 rounded-xl border border-slate-200'
+                        : 'grid grid-cols-7 gap-3 text-xs bg-slate-50 p-3 rounded-xl border border-slate-200'
                     }
                   >
                     <div>
@@ -807,15 +807,31 @@ export const FinanceSettlementTab: React.FC<FinanceSettlementTabProps> = ({
                       <div className="font-bold text-emerald-700">{formatVND(b.grossRevenue)}</div>
                     </div>
                     <div>
-                      <div className="text-xs text-slate-500">Tự cấn trừ (-)</div>
+                      <div className="text-xs text-slate-500">Cao tốc + phí điều hành (-)</div>
                       <div className="font-semibold text-amber-700">
-                        -{formatVND(b.totalAutoDeducted)}
+                        -{formatVND(b.totalAutoDeducted - (Number(trip.autoFuelQuota) || 0))}
                       </div>
                     </div>
                     <div>
-                      <div className="text-xs text-slate-500">Nhập tay + Đậu xe/Phạt (-)</div>
+                      <div className="text-xs text-slate-500">
+                        {veh?.fuelType === 'ELECTRIC' ? 'Tiền điện (-)' : 'Tiền xăng/dầu (-)'}
+                      </div>
+                      <div className="font-semibold text-amber-700">
+                        -{formatVND(Number(trip.autoFuelQuota) || 0)}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-slate-500">Chi phí tài xế (-)</div>
+                      <div className="font-semibold text-rose-600">-{formatVND(b.driverPay)}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-slate-500">Chi phí khách sạn (-)</div>
+                      <div className="font-semibold text-rose-600">-{formatVND(b.hotelFee)}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-slate-500">Chi phí khác (-)</div>
                       <div className="font-semibold text-rose-600">
-                        -{formatVND(b.totalManualExpense + b.totalRiskExpense)}
+                        -{formatVND(b.manualExpenseOnly + b.totalRiskExpense)}
                       </div>
                     </div>
                     <div className={isMobile ? 'border-t border-slate-200 pt-1.5 col-span-2 flex items-center justify-between' : 'border-l border-slate-200 pl-3'}>

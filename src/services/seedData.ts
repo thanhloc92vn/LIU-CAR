@@ -20,7 +20,7 @@ export const initialFleetDatabase: FleetDatabase = {
       name: 'Haydixe',
       shortName: 'Haydixe',
       taxCode: '',
-      hotline: '',
+      hotline: '0393953935',
       bankInfo: '',
       defaultDispatchFeePercent: 10,
       autoFuelDeductionEnabled: true,

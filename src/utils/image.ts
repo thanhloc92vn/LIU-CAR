@@ -3,7 +3,7 @@ export const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 
 const MAX_EDGE_PX = 900;
 
-// Thu nhỏ ảnh về JPEG ~vài chục KB để lưu thẳng vào database cùng dữ liệu xe.
+// Thu nhỏ ảnh về JPEG ~vài chục KB trước khi tải lên Supabase Storage (uploadVehicleImage).
 export const fileToCompressedDataUrl = (file: File): Promise<string> =>
   new Promise((resolve, reject) => {
     if (!file.type.startsWith('image/')) {

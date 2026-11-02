@@ -261,7 +261,30 @@ export async function deleteStaff(userId: string): Promise<boolean> {
 // Bản DB lần cuối đọc/lưu thành công (để biết người khác đã sửa gì kể từ đó)
 let base: { payload: FleetDatabase; updatedAt: string } | null = null;
 
-const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+// So sánh không phụ thuộc thứ tự khóa: Postgres (jsonb) sắp lại khóa khi lưu, nên so chuỗi JSON thường
+// luôn thấy "khác" dù nội dung như nhau, khiến app lưu lại liên tục và hai tab giành nhau lưu.
+const sortedKeys = (_k: string, v: any) =>
+  v && typeof v === 'object' && !Array.isArray(v)
+    ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, v[k]]))
+    : v;
+const same = (a: unknown, b: unknown) => JSON.stringify(a, sortedKeys) === JSON.stringify(b, sortedKeys);
+
+const isIdList = (v: unknown) => v === undefined || (Array.isArray(v) && v.every((x) => x?.id));
+
+// id các mục người dùng đã xóa trong phiên này. Khi gộp/lưu, một mục đang có trên server chỉ bị bỏ
+// nếu id nằm ở đây: bản cũ hay thiếu (tab khác, bản lưu xếp hàng) không được ngầm xóa chuyến của người khác.
+const deletedIds = new Set<string>();
+
+// Gọi mỗi khi dữ liệu đổi: mục nào có ở bản trước mà mất ở bản sau là do người dùng xóa
+export function trackDeletions(prev: FleetDatabase, next: FleetDatabase): void {
+  Object.keys(prev).forEach((k) => {
+    const p = (prev as any)[k];
+    const n = (next as any)[k];
+    if (!Array.isArray(p) || !isIdList(p) || !isIdList(n)) return;
+    const still = new Set((n || []).map((x: any) => x.id));
+    p.forEach((x: any) => !still.has(x.id) && deletedIds.add(x.id));
+  });
+}
 
 // Gộp 3 bên theo id: giữ thay đổi của mình, nhận thêm thay đổi của người khác (đơn khách mới, tài xế xác nhận)
 function mergeById(baseArr: any[] = [], local: any[] = [], server: any[] = []): any[] {
@@ -272,7 +295,7 @@ function mergeById(baseArr: any[] = [], local: any[] = [], server: any[] = []): 
   const kept = server.flatMap((s) => {
     const b = baseMap.get(s.id);
     const l = localMap.get(s.id);
-    if (!l) return b && same(b, s) ? [] : [s]; // mình đã xóa: bỏ, trừ khi người khác vừa sửa
+    if (!l) return deletedIds.has(s.id) ? [] : [s]; // chỉ bỏ khi chính mình đã bấm xóa
     return [b && same(b, l) ? s : l];
   });
   return [...added, ...kept];
@@ -285,10 +308,27 @@ export function mergeState(baseDb: FleetDatabase, local: FleetDatabase, server: 
     const b = (baseDb as any)[k];
     const l = (local as any)[k];
     const s = (server as any)[k];
-    const byId = [b, l, s].every((v) => v === undefined || (Array.isArray(v) && v.every((x) => x?.id)));
-    out[k] = byId ? mergeById(b, l, s) : same(b, l) ? s : l;
+    out[k] = [b, l, s].every(isIdList) ? mergeById(b, l, s) : same(b, l) ? s : l;
   });
   return out;
+}
+
+// Trước khi ghi đè: thêm lại các mục đang có trên server mà bản sắp lưu thiếu (không phải do mình xóa)
+function keepServerItems(local: FleetDatabase, server: FleetDatabase): { db: FleetDatabase; restored: boolean } {
+  const out: any = { ...local };
+  let restored = false;
+  Object.keys(server).forEach((k) => {
+    const s = (server as any)[k];
+    const l = out[k];
+    if (!Array.isArray(s) || !isIdList(s) || !isIdList(l)) return;
+    const have = new Set((l || []).map((x: any) => x.id));
+    const missing = s.filter((x: any) => !have.has(x.id) && !deletedIds.has(x.id));
+    if (missing.length) {
+      out[k] = [...missing, ...(l || [])];
+      restored = true;
+    }
+  });
+  return { db: out, restored };
 }
 
 const withoutAccounts = (db: FleetDatabase): FleetDatabase => {
@@ -344,11 +384,13 @@ export async function saveAdminState(
   db: FleetDatabase
 ): Promise<{ ok: boolean; merged?: FleetDatabase; error?: string }> {
   if (!base) return { ok: false, error: 'Chưa tải được dữ liệu gốc' };
-  let local = withoutAccounts(db);
-  if (same(local, base.payload)) return { ok: true };
+  // Bản lưu xếp hàng có thể được tạo trước khi app nhận chuyến mới từ server: giữ lại các chuyến đó
+  const kept = keepServerItems(withoutAccounts(db), base.payload);
+  let local = kept.db;
+  let merged: FleetDatabase | undefined = kept.restored ? local : undefined;
+  if (same(local, base.payload)) return { ok: true, merged };
 
   let r = await rpc<string>('save_state', { p_payload: local, p_base: base.updatedAt });
-  let merged: FleetDatabase | undefined;
   if (!r.ok && r.code === '40001') {
     const sentBase = base.payload;
     const server = await loadAdminState();
@@ -390,6 +432,30 @@ export async function loadTelegramLinks(): Promise<{ driver_id: string; linked_a
   } catch {
     return [];
   }
+}
+
+// Ảnh xe nằm trong bucket công khai `vehicle-images` (supabase/vehicle_images.sql); dữ liệu xe chỉ giữ link.
+const VEHICLE_IMAGE_BUCKET = 'vehicle-images';
+
+export async function uploadVehicleImage(dataUrl: string): Promise<string> {
+  const blob = await (await fetch(dataUrl)).blob();
+  const name = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
+  let res: Response;
+  try {
+    res = await api(`/storage/v1/object/${VEHICLE_IMAGE_BUCKET}/${name}`, {
+      method: 'POST',
+      headers: { 'Content-Type': blob.type || 'image/jpeg' },
+      body: blob,
+    });
+  } catch (err: any) {
+    throw new Error(err?.message === 'AUTH_EXPIRED' ? 'Phiên đăng nhập đã hết hạn' : 'Lỗi kết nối Supabase');
+  }
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new Error(data?.message || `Không tải được ảnh lên (lỗi ${res.status})`);
+  }
+  const { url } = getSupabaseCredentials();
+  return `${url}/storage/v1/object/public/${VEHICLE_IMAGE_BUCKET}/${name}`;
 }
 
 // Bản sao dạng bảng (tenants, vehicles, drivers, trips) để xem trên Supabase Table Editor

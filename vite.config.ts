@@ -118,5 +118,7 @@ export default defineConfig({
   server: {
     port: 3000,
     host: true,
+    // Các /api/* không do plugin trên xử lý (public-catalog, public-booking...) chạy bằng `vercel dev --listen 3001`
+    proxy: { '/api': 'http://localhost:3001' },
   },
 });

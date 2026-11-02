@@ -305,7 +305,7 @@ const CarShowcase3D: React.FC = () => {
         type="button"
         onClick={() => go(-1)}
         aria-label="Xe trước"
-        className="absolute left-2 sm:left-6 top-1/2 -translate-y-1/2 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/90 shadow-md flex items-center justify-center text-slate-700 hover:bg-white"
+        className="absolute left-[max(0.5rem,calc(50%-500px))] top-1/2 -translate-y-1/2 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/90 shadow-md flex items-center justify-center text-slate-700 hover:bg-white"
       >
         <ChevronLeft className="w-5 h-5" />
       </button>
@@ -313,7 +313,7 @@ const CarShowcase3D: React.FC = () => {
         type="button"
         onClick={() => go(1)}
         aria-label="Xe tiếp theo"
-        className="absolute right-2 sm:right-6 top-1/2 -translate-y-1/2 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/90 shadow-md flex items-center justify-center text-slate-700 hover:bg-white"
+        className="absolute right-[max(0.5rem,calc(50%-500px))] top-1/2 -translate-y-1/2 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/90 shadow-md flex items-center justify-center text-slate-700 hover:bg-white"
       >
         <ChevronRight className="w-5 h-5" />
       </button>

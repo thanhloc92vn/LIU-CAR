@@ -19,6 +19,25 @@ export type ServiceMode = 'WITH_DRIVER' | 'SELF_DRIVE' | 'BOTH';
 
 export type RouteType = 'HIGHWAY' | 'NATIONAL_ROAD' | 'MIXED';
 
+export interface SiteDestination {
+  name: string;
+  province: string;
+  distance: string;
+  blurb: string;
+}
+
+export interface SiteFaq {
+  question: string;
+  answer: string[];
+}
+
+// Nội dung trang khách do admin chỉnh. Trường nào chưa có thì trang khách dùng nội dung mặc định.
+export interface SiteContent {
+  facebookUrl?: string;
+  destinations?: SiteDestination[];
+  faqs?: SiteFaq[];
+}
+
 export interface TenantConfig {
   id: string;
   name: string;
@@ -32,6 +51,7 @@ export interface TenantConfig {
   telegramBotToken?: string;
   telegramGroupChatId?: string;
   zaloOaName?: string;
+  siteContent?: SiteContent;
   createdAt: string;
 }
 
@@ -63,7 +83,7 @@ export interface Vehicle {
   inspectionExpiry: string; // Hạn đăng kiểm
   insuranceExpiry: string;  // Hạn bảo hiểm
   notes?: string;
-  images?: string[];        // Tối đa 3 ảnh (data URL); ảnh đầu tiên là thumbnail
+  images?: string[];        // Tối đa 3 ảnh (link Supabase Storage); ảnh đầu tiên là thumbnail
 }
 
 export interface Driver {

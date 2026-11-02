@@ -23,6 +23,7 @@ import {
 import { normalizePlate, ownerPlates } from '../utils/party';
 import { calculateTripFinancials, formatVND } from '../utils/calculations';
 import { fileToCompressedDataUrl, MAX_VEHICLE_IMAGES } from '../utils/image';
+import { uploadVehicleImage } from '../services/supabaseClient';
 
 const FUEL_BADGE_CLASS: Record<FuelType, string> = {
   ELECTRIC: 'bg-teal-100 text-teal-800 border border-teal-300',
@@ -103,6 +104,7 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
   const [vStatus, setVStatus] = useState<Vehicle['status']>('AVAILABLE');
   const [vImages, setVImages] = useState<string[]>([]);
   const [vImageError, setVImageError] = useState('');
+  const [vUploading, setVUploading] = useState(false);
 
   const handlePickImages = async (files: FileList | null) => {
     if (!files) return;
@@ -110,13 +112,15 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
     const room = MAX_VEHICLE_IMAGES - vImages.length;
     const picked = Array.from(files).slice(0, room);
     const added: string[] = [];
+    setVUploading(true);
     for (const f of picked) {
       try {
-        added.push(await fileToCompressedDataUrl(f));
+        added.push(await uploadVehicleImage(await fileToCompressedDataUrl(f)));
       } catch (err: any) {
         setVImageError(err.message);
       }
     }
+    setVUploading(false);
     if (files.length > room) setVImageError(`Chỉ được tối đa ${MAX_VEHICLE_IMAGES} ảnh`);
     if (added.length) setVImages((prev) => [...prev, ...added]);
   };
@@ -977,6 +981,7 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
                     </label>
                   )}
                 </div>
+                {vUploading && <p className="text-blue-600 mt-1">Đang tải ảnh lên...</p>}
                 {vImageError && <p className="text-red-600 mt-1">{vImageError}</p>}
                 <p className="text-slate-400 mt-1">
                   Ảnh đầu tiên tự làm thumbnail; bấm "Đặt làm đại diện" để đổi.
@@ -996,7 +1001,8 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl bg-blue-600 text-white font-bold"
+                  disabled={vUploading}
+                  className="px-4 py-2 rounded-xl bg-blue-600 text-white font-bold disabled:opacity-50"
                 >
                   {editingVehicle ? 'Lưu Cập Nhật' : 'Lưu Xe Mới'}
                 </button>

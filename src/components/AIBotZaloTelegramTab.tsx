@@ -9,7 +9,7 @@ import {
   RefreshCw,
   Send,
   Settings,
-  Sparkles,
+  Trash2,
   UserPlus,
   Zap,
 } from 'lucide-react';
@@ -26,6 +26,7 @@ import {
   parseNaturalBookingCommand,
 } from '../utils/aiBotEngine';
 import { calculateTripFinancials, formatVND } from '../utils/calculations';
+import { useConfirm } from './ConfirmDialog';
 
 interface AIBotZaloTelegramTabProps {
   trips: Trip[];
@@ -40,13 +41,8 @@ interface AIBotZaloTelegramTabProps {
   onTagReassignDriver: (tripId: string, newDriverId: string, channel: 'TELEGRAM' | 'ZALO') => void;
   onBotQuickAddRisk: (tripId: string, type: 'PARKING' | 'FINE', amount: number, note: string) => void;
   onSaveTelegramConfig: (botToken: string, groupChatId: string) => void;
+  onDeleteBotLogs: (ids: string[]) => void;
 }
-
-const SAMPLE_PROMPTS = [
-  'Đặt xe 7 chỗ Xpander ngày mai 07:30 đi Phan Thiết theo đường cao tốc, giá 3.200.000đ, phí đậu xe 60.000đ, giao @taixe_minh',
-  'Đặt xe 4 chỗ Vios hôm nay 09:00 đi Bảo Lộc theo đường quốc lộ, giá 2.400.000đ, giao @hung_tran_driver',
-  'Đặt xe 16 chỗ Solati ngày mai 06:00 đi Vũng Tàu tuyến cao tốc, giá 3.800.000đ, đậu xe 100.000đ, tag @nam_limousine @taixe_minh',
-];
 
 export const AIBotZaloTelegramTab: React.FC<AIBotZaloTelegramTabProps> = ({
   trips,
@@ -61,21 +57,15 @@ export const AIBotZaloTelegramTab: React.FC<AIBotZaloTelegramTabProps> = ({
   onTagReassignDriver,
   onBotQuickAddRisk,
   onSaveTelegramConfig,
+  onDeleteBotLogs,
 }) => {
-  const [commandInput, setCommandInput] = useState<string>(SAMPLE_PROMPTS[0]);
-  const [selectedChannel, setSelectedChannel] = useState<'BOTH' | 'TELEGRAM' | 'ZALO'>('BOTH');
+  const confirm = useConfirm();
+  const [commandInput, setCommandInput] = useState<string>('');
   const [reassignTargetByTrip, setReassignTargetByTrip] = useState<Record<string, string>>({});
   const [showWebhookSettings, setShowWebhookSettings] = useState(false);
   const [botToken, setBotToken] = useState(activeTenant.telegramBotToken || '');
   const [groupChatId, setGroupChatId] = useState(activeTenant.telegramGroupChatId || '');
   const [lastAiFeedback, setLastAiFeedback] = useState<string>('');
-
-  const livePreview = parseNaturalBookingCommand(
-    commandInput,
-    vehicles,
-    drivers,
-    highwayPresets
-  );
 
   const handleInsertTag = (drv: Driver) => {
     setCommandInput((prev) => `${prev.trim()} ${drv.telegramUsername} `);
@@ -144,7 +134,7 @@ export const AIBotZaloTelegramTab: React.FC<AIBotZaloTelegramTabProps> = ({
       otherRiskFee: 0,
       otherRiskNote: '',
       status: 'PENDING_CONFIRM',
-      botChannel: selectedChannel,
+      botChannel: 'TELEGRAM',
       notes: `Tạo tự động từ câu lệnh AI: "${commandInput.trim()}"`,
     };
 
@@ -182,11 +172,11 @@ export const AIBotZaloTelegramTab: React.FC<AIBotZaloTelegramTabProps> = ({
       tenantId: activeTenant.id,
       tripCode,
       timestamp: new Date().toLocaleString('vi-VN'),
-      channel: selectedChannel === 'ZALO' ? 'ZALO' : 'TELEGRAM',
+      channel: 'TELEGRAM',
       recipientDriverId: drv.id,
       recipientName: drv.fullName,
       recipientHandle: parsed.taggedDrivers
-        .map((d) => `${d.telegramUsername} / Zalo:${d.zaloPhone}`)
+        .map((d) => d.telegramUsername)
         .join(', '),
       messageType: 'BOOKING_CONFIRM',
       content: msgContent,
@@ -196,7 +186,7 @@ export const AIBotZaloTelegramTab: React.FC<AIBotZaloTelegramTabProps> = ({
     setLastAiFeedback(
       `Đã tạo chuyến #${tripCode} và bắn thông báo xác nhận lịch đến ${parsed.taggedDrivers
         .map((d) => d.fullName)
-        .join(', ')} qua ${selectedChannel === 'BOTH' ? 'cả Zalo & Telegram' : selectedChannel}!`
+        .join(', ')} qua Telegram!`
     );
   };
 
@@ -211,7 +201,7 @@ export const AIBotZaloTelegramTab: React.FC<AIBotZaloTelegramTabProps> = ({
             </div>
             <div>
               <h2 className="text-base sm:text-lg font-extrabold flex items-center gap-2">
-                Trợ Lý AI Đặt Lịch Xe & Tag Tên Tài Xế Qua Zalo / Telegram
+                Trợ Lý AI Đặt Lịch Xe & Tag Tên Tài Xế Qua Telegram
                 <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold">
                   ONLINE 24/7
                 </span>
@@ -228,7 +218,7 @@ export const AIBotZaloTelegramTab: React.FC<AIBotZaloTelegramTabProps> = ({
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-medium text-slate-700 transition"
           >
             <Settings className="w-3.5 h-3.5" />
-            Cấu hình Token Zalo OA & Telegram Bot
+            Cấu hình Telegram Bot
           </button>
         </div>
 
@@ -267,7 +257,7 @@ export const AIBotZaloTelegramTab: React.FC<AIBotZaloTelegramTabProps> = ({
                 }}
                 className="w-full py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium"
               >
-                Lưu Kết Nối Telegram & Zalo Webhook
+                Lưu Kết Nối Telegram
               </button>
             </div>
           </div>
@@ -301,25 +291,8 @@ export const AIBotZaloTelegramTab: React.FC<AIBotZaloTelegramTabProps> = ({
               className="w-full rounded-xl bg-slate-50 border border-slate-200 px-4 py-3 text-sm text-slate-900 placeholder-slate-400"
             />
 
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="text-xs text-emerald-700 font-medium flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
-                <span>{livePreview.summaryText}</span>
-              </div>
-
+            <div className="flex flex-wrap items-center justify-end gap-3">
               <div className="flex items-center gap-2">
-                <select
-                  value={selectedChannel}
-                  onChange={(e) =>
-                    setSelectedChannel(e.target.value as 'BOTH' | 'TELEGRAM' | 'ZALO')
-                  }
-                  className="h-10 rounded-full bg-slate-100 border-0 px-4 text-sm font-medium text-slate-900"
-                >
-                  <option value="BOTH">Bắn qua cả Zalo + Telegram</option>
-                  <option value="TELEGRAM">Chỉ bắn qua Telegram Bot</option>
-                  <option value="ZALO">Chỉ bắn qua Zalo OA</option>
-                </select>
-
                 <button
                   type="submit"
                   className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition"
@@ -331,21 +304,6 @@ export const AIBotZaloTelegramTab: React.FC<AIBotZaloTelegramTabProps> = ({
             </div>
           </form>
 
-          {/* Gợi ý câu lệnh mẫu */}
-          <div className="flex flex-wrap items-center gap-1.5 pt-1">
-            <span className="text-xs text-blue-600">Mẫu lệnh thử nhanh:</span>
-            {SAMPLE_PROMPTS.map((sample, idx) => (
-              <button
-                key={idx}
-                type="button"
-                onClick={() => setCommandInput(sample)}
-                className="text-xs px-2.5 py-1 rounded-md bg-white/5 hover:bg-white/15 text-blue-600 border border-white/10 transition truncate max-w-xs"
-              >
-                Mẫu #{idx + 1}: {sample.slice(0, 46)}...
-              </button>
-            ))}
-          </div>
-
           {lastAiFeedback && (
             <div className="p-3 rounded-xl bg-emerald-50 text-xs font-medium text-emerald-700">
               {lastAiFeedback}
@@ -354,7 +312,7 @@ export const AIBotZaloTelegramTab: React.FC<AIBotZaloTelegramTabProps> = ({
         </div>
       </div>
 
-      {/* 2. Mô Phỏng Tương Tác 2 Chiều Trên Zalo & Telegram Của Tài Xế */}
+      {/* 2. Mô Phỏng Tương Tác 2 Chiều Trên Telegram Của Tài Xế */}
       <div className={isMobile ? 'grid grid-cols-1 gap-4' : 'grid grid-cols-1 lg:grid-cols-2 gap-6'}>
         {/* Cột Trái: Thao tác Xác nhận Lịch & Tag Chuyển Tài Xế Khác */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
@@ -362,7 +320,7 @@ export const AIBotZaloTelegramTab: React.FC<AIBotZaloTelegramTabProps> = ({
             <div>
               <h3 className="text-sm font-bold flex items-center gap-2">
                 <Zap className="w-4 h-4 text-amber-500" />
-                Màn Hình Tương Tác Của Tài Xế Trên Zalo & Telegram
+                Màn Hình Tương Tác Của Tài Xế Trên Telegram
               </h3>
               <p className="text-xs text-slate-500">
                 Tài xế bấm Xác nhận lịch, hoặc @Tag tài xế khác nhận thay, hoặc báo nhanh phí đậu xe / phí phạt
@@ -409,8 +367,7 @@ export const AIBotZaloTelegramTab: React.FC<AIBotZaloTelegramTabProps> = ({
 
                   <div className="bg-white rounded-lg p-3 border border-slate-200 text-xs space-y-1 font-mono text-slate-700">
                     <div className="font-bold text-blue-900">
-                      Tin nhắn gửi đến: {drv?.fullName} ({drv?.telegramUsername} | Zalo:{' '}
-                      {drv?.zaloPhone})
+                      Tin nhắn gửi đến: {drv?.fullName} ({drv?.telegramUsername})
                     </div>
                     <div>
                       • Hành trình: {trip.pickupLocation} → {trip.dropoffLocation} ({trip.tripDate}{' '}
@@ -436,7 +393,7 @@ export const AIBotZaloTelegramTab: React.FC<AIBotZaloTelegramTabProps> = ({
                     </div>
                   </div>
 
-                  {/* Nút bấm tương tác trên Telegram / Zalo của Tài xế */}
+                  {/* Nút bấm tương tác trên Telegram của Tài xế */}
                   <div className="flex flex-wrap items-center gap-2">
                     <button
                       type="button"
@@ -448,20 +405,12 @@ export const AIBotZaloTelegramTab: React.FC<AIBotZaloTelegramTabProps> = ({
                     </button>
                     <button
                       type="button"
-                      onClick={() => onDriverConfirmTrip(trip.id, 'ZALO')}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition"
-                    >
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      Xác Nhận Qua Zalo
-                    </button>
-                    <button
-                      type="button"
                       onClick={() =>
                         onBotQuickAddRisk(
                           trip.id,
                           'PARKING',
                           50000,
-                          'Tài xế báo vé đậu xe qua Bot Zalo/Telegram'
+                          'Tài xế báo vé đậu xe qua Bot Telegram'
                         )
                       }
                       className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-semibold transition"
@@ -476,7 +425,7 @@ export const AIBotZaloTelegramTab: React.FC<AIBotZaloTelegramTabProps> = ({
                           trip.id,
                           'FINE',
                           350000,
-                          'Tài xế báo biên bản phạt qua Bot Zalo/Telegram'
+                          'Tài xế báo biên bản phạt qua Bot Telegram'
                         )
                       }
                       className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-rose-100 hover:bg-rose-200 text-rose-800 text-xs font-semibold transition"
@@ -506,7 +455,7 @@ export const AIBotZaloTelegramTab: React.FC<AIBotZaloTelegramTabProps> = ({
                         .filter((d) => d.id !== trip.driverId)
                         .map((d) => (
                           <option key={d.id} value={d.id}>
-                            @{d.fullName} ({d.telegramUsername} • Zalo {d.zaloPhone})
+                            @{d.fullName} ({d.telegramUsername})
                           </option>
                         ))}
                     </select>
@@ -527,18 +476,36 @@ export const AIBotZaloTelegramTab: React.FC<AIBotZaloTelegramTabProps> = ({
           </div>
         </div>
 
-        {/* Cột Phải: Nhật ký Thông báo Zalo OA & Telegram Bot */}
+        {/* Cột Phải: Nhật ký Thông báo Telegram Bot */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
           <div className="bg-white text-slate-900 border-b border-slate-200 px-5 py-4 flex items-center justify-between">
             <div>
               <h3 className="text-sm font-bold flex items-center gap-2">
                 <MessageSquare className="w-4 h-4 text-emerald-400" />
-                Nhật Ký Bot AI Gửi Zalo & Telegram ({botLogs.length} bản ghi)
+                Nhật Ký Bot AI Gửi Telegram ({botLogs.length} bản ghi)
               </h3>
               <p className="text-xs text-slate-500">
                 Lưu vết mọi thông báo xác nhận lịch, @tag tài xế khác và cảnh báo chi phí phạt/đậu xe
               </p>
             </div>
+            {botLogs.length > 0 && (
+              <button
+                type="button"
+                onClick={async () => {
+                  const ok = await confirm({
+                    title: `Xóa ${botLogs.length} bản ghi nhật ký?`,
+                    message: 'Chỉ xóa nhật ký bot, các chuyến và doanh thu giữ nguyên. Không khôi phục được.',
+                    confirmLabel: 'Xóa tất cả',
+                    tone: 'danger',
+                  });
+                  if (ok) onDeleteBotLogs(botLogs.map((l) => l.id));
+                }}
+                className="ml-auto inline-flex items-center gap-1 h-8 px-3 rounded-full bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold shrink-0"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Xóa tất cả
+              </button>
+            )}
           </div>
 
           <div className="p-4 space-y-3 overflow-y-auto max-h-[600px]">
@@ -561,7 +528,25 @@ export const AIBotZaloTelegramTab: React.FC<AIBotZaloTelegramTabProps> = ({
                     <span className="font-bold text-slate-900">{log.recipientName}</span>
                     <span className="text-slate-500 text-xs">({log.recipientHandle})</span>
                   </div>
-                  <span className="text-xs text-slate-400">{log.timestamp}</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-slate-400">{log.timestamp}</span>
+                    <button
+                      type="button"
+                      title="Xóa bản ghi này"
+                      onClick={async () => {
+                        const ok = await confirm({
+                          title: 'Xóa bản ghi này?',
+                          message: `Mã chuyến #${log.tripCode || 'N/A'}. Không khôi phục được.`,
+                          confirmLabel: 'Xóa',
+                          tone: 'danger',
+                        });
+                        if (ok) onDeleteBotLogs([log.id]);
+                      }}
+                      className="w-7 h-7 inline-flex items-center justify-center rounded-full text-rose-600 hover:bg-rose-50"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
 
                 <div className="whitespace-pre-line bg-white p-3 rounded-lg border border-slate-200 text-slate-700 leading-relaxed">
