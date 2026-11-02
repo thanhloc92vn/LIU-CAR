@@ -437,9 +437,12 @@ export async function loadTelegramLinks(): Promise<{ driver_id: string; linked_a
 // Ảnh xe nằm trong bucket công khai `vehicle-images` (supabase/vehicle_images.sql); dữ liệu xe chỉ giữ link.
 const VEHICLE_IMAGE_BUCKET = 'vehicle-images';
 
-export async function uploadVehicleImage(dataUrl: string): Promise<string> {
+// Ảnh điểm du lịch trang khách dùng chung bucket, nằm trong thư mục riêng
+export const uploadDestinationImage = (dataUrl: string) => uploadVehicleImage(dataUrl, 'destinations/');
+
+export async function uploadVehicleImage(dataUrl: string, folder = ''): Promise<string> {
   const blob = await (await fetch(dataUrl)).blob();
-  const name = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
+  const name = `${folder}${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
   let res: Response;
   try {
     res = await api(`/storage/v1/object/${VEHICLE_IMAGE_BUCKET}/${name}`, {

@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { Plus, Save, Trash2 } from 'lucide-react';
+import { ImagePlus, Plus, Save, Trash2, X } from 'lucide-react';
 import { SiteContent, SiteDestination, SiteFaq } from '../types/fleet';
 import { resolveSiteContent } from '../data/siteContent';
+import { fileToCompressedDataUrl } from '../utils/image';
+import { uploadDestinationImage } from '../services/supabaseClient';
 
 interface SiteContentTabProps {
   content?: SiteContent;
@@ -27,6 +29,21 @@ export const SiteContentTab: React.FC<SiteContentTabProps> = ({ content, canEdit
   const patchFaq = (i: number, patch: Partial<SiteFaq>) =>
     setFaqs((list) => list.map((f, idx) => (idx === i ? { ...f, ...patch } : f)));
 
+  // Ảnh điểm đến: nén rồi tải lên Storage ngay, bản nháp chỉ giữ link. Bấm "Lưu thay đổi" khách mới thấy.
+  const [uploadingIdx, setUploadingIdx] = useState<number | null>(null);
+  const [imageError, setImageError] = useState('');
+  const pickDestImage = async (i: number, file?: File) => {
+    if (!file) return;
+    setImageError('');
+    setUploadingIdx(i);
+    try {
+      patchDest(i, { image: await uploadDestinationImage(await fileToCompressedDataUrl(file)) });
+    } catch (err: any) {
+      setImageError(err.message);
+    }
+    setUploadingIdx(null);
+  };
+
   const handleSave = () => {
     onSave({
       facebookUrl: facebookUrl.trim(),
@@ -46,7 +63,8 @@ export const SiteContentTab: React.FC<SiteContentTabProps> = ({ content, canEdit
           <button
             type="button"
             onClick={handleSave}
-            className="inline-flex items-center gap-1.5 h-9 px-4 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold shrink-0"
+            disabled={uploadingIdx !== null}
+            className="inline-flex items-center gap-1.5 h-9 px-4 rounded-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-semibold shrink-0"
           >
             <Save className="w-4 h-4" />
             Lưu thay đổi
@@ -80,8 +98,44 @@ export const SiteContentTab: React.FC<SiteContentTabProps> = ({ content, canEdit
             </button>
           )}
         </div>
+        {imageError && <p className="text-sm text-rose-600">{imageError}</p>}
         {destinations.map((d, i) => (
           <div key={i} className="bg-white rounded-2xl p-4 shadow-sm grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="sm:col-span-2 flex items-center gap-3">
+              <div className="relative w-32 aspect-[16/10] shrink-0 rounded-xl overflow-hidden bg-slate-100 flex items-center justify-center">
+                {d.image ? (
+                  <img src={d.image} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <ImagePlus className="w-5 h-5 text-slate-400" />
+                )}
+                {d.image && canEdit && (
+                  <button
+                    type="button"
+                    title="Bỏ ảnh"
+                    onClick={() => patchDest(i, { image: undefined })}
+                    className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+              {canEdit && (
+                <label className="inline-flex items-center gap-1 h-8 px-3 rounded-full bg-slate-100 hover:bg-slate-200 text-sm font-medium cursor-pointer">
+                  <ImagePlus className="w-4 h-4" />
+                  {uploadingIdx === i ? 'Đang tải ảnh lên...' : d.image ? 'Đổi ảnh' : 'Thêm ảnh'}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    disabled={uploadingIdx !== null}
+                    onChange={(e) => {
+                      pickDestImage(i, e.target.files?.[0]);
+                      e.target.value = '';
+                    }}
+                  />
+                </label>
+              )}
+            </div>
             <div>
               <label className={labelClass}>Tên điểm đến *</label>
               <input className={inputClass} value={d.name} disabled={!canEdit} onChange={(e) => patchDest(i, { name: e.target.value })} />

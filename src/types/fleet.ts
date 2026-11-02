@@ -24,6 +24,7 @@ export interface SiteDestination {
   province: string;
   distance: string;
   blurb: string;
+  image?: string; // link ảnh trên Supabase Storage
 }
 
 export interface SiteFaq {

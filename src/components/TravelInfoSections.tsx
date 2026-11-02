@@ -20,6 +20,14 @@ export const TravelInfoSections: React.FC<TravelInfoSectionsProps> = ({ destinat
         <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {destinations.map((d) => (
             <div key={d.name} className="bg-white rounded-2xl p-4 shadow-sm flex flex-col">
+              {d.image && (
+                <img
+                  src={d.image}
+                  alt={d.name}
+                  loading="lazy"
+                  className="-mx-4 -mt-4 mb-3 w-[calc(100%+2rem)] max-w-none aspect-[16/10] object-cover rounded-t-2xl"
+                />
+              )}
               <div className="flex items-center gap-2 text-blue-600">
                 <MapPin className="w-4 h-4" />
                 <span className="text-xs font-medium text-slate-500">{d.province}</span>
