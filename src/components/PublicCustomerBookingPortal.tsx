@@ -1,4 +1,5 @@
 import { PROVINCES } from '../data/provinces';
+import { PlaceInput } from './PlaceInput';
 import { resolveSiteContent } from '../data/siteContent';
 import React, { lazy, Suspense, useEffect, useState } from 'react';
 import {
@@ -32,6 +33,8 @@ import { TravelInfoSections } from './TravelInfoSections';
 
 // three.js nặng: tách chunk riêng để trang khách hiện ra trước
 const CarShowcase3D = lazy(() => import('./CarShowcase3D'));
+// Thư viện bản đồ cũng nặng: chỉ tải khi khách đã chọn đủ điểm đón và điểm đến
+const RouteMap = lazy(() => import('./RouteMap'));
 
 // Kết quả tra cứu do máy chủ trả (chỉ phần khách cần xem)
 interface LookupTrip {
@@ -89,9 +92,31 @@ export const PublicCustomerBookingPortal: React.FC = () => {
   const [returnTime, setReturnTime] = useState('19:30');
   const [pickupLocation, setPickupLocation] = useState('');
   const [dropoffLocation, setDropoffLocation] = useState('');
+  const [pickupPlaceId, setPickupPlaceId] = useState<string | null>(null);
+  const [dropoffPlaceId, setDropoffPlaceId] = useState<string | null>(null);
+  const [routeInfo, setRouteInfo] = useState<{
+    km: number;
+    minutes: number;
+    line?: [number, number][];
+    bbox?: [number, number, number, number];
+  } | null>(null);
   const [routeType, setRouteType] = useState<RouteType>('HIGHWAY');
   const [selectedPresetId, setSelectedPresetId] = useState<string>(highwayPresets[0]?.id || '');
   const [isRoundTrip, setIsRoundTrip] = useState(true);
+
+  // Khách chọn cả điểm đón lẫn điểm đến từ gợi ý địa chỉ thì hiện quãng đường ước tính
+  useEffect(() => {
+    setRouteInfo(null);
+    if (!pickupPlaceId || !dropoffPlaceId) return;
+    const ctrl = new AbortController();
+    fetch(`/api/maps?type=route&from=${encodeURIComponent(pickupPlaceId)}&to=${encodeURIComponent(dropoffPlaceId)}`, {
+      signal: ctrl.signal,
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d && typeof d.km === 'number' && setRouteInfo(d))
+      .catch(() => {});
+    return () => ctrl.abort();
+  }, [pickupPlaceId, dropoffPlaceId]);
   const [customerNotes, setCustomerNotes] = useState('');
 
   // Confirmation receipt state
@@ -143,7 +168,9 @@ export const PublicCustomerBookingPortal: React.FC = () => {
 
     const preset =
       highwayPresets.find((p) => p.id === selectedPresetId) || highwayPresets[0];
-    const distanceKm = (preset?.defaultDistanceKm || 150) * (isRoundTrip ? 2 : 1);
+    // Khách chọn đủ hai điểm từ gợi ý thì dùng km thật theo bản đồ, không thì theo tuyến phổ biến
+    const oneWayKm = routeInfo?.km || preset?.defaultDistanceKm || 150;
+    const distanceKm = oneWayKm * (isRoundTrip ? 2 : 1);
     // Estimate base fare based on vehicle rate & distance
     const estimatedFare =
       serviceType === 'SELF_DRIVE'
@@ -185,7 +212,9 @@ export const PublicCustomerBookingPortal: React.FC = () => {
       pickupLocation: pickupLocation.trim(),
       dropoffLocation: dropoffLocation.trim() || preset?.name || 'Theo lộ trình',
       routeType,
-      routeDetail: preset?.name || 'Theo lộ trình khách chọn',
+      routeDetail: routeInfo
+        ? `Theo bản đồ: ${routeInfo.km} km/chiều${preset ? ` · phí cao tốc theo tuyến ${preset.name}` : ''}`
+        : preset?.name || 'Theo lộ trình khách chọn',
       distanceKm,
       isRoundTrip,
       baseFareRevenue: estimatedFare,
@@ -218,6 +247,7 @@ export const PublicCustomerBookingPortal: React.FC = () => {
     setCustomerName('');
     setCustomerPhone('');
     setDropoffLocation('');
+    setDropoffPlaceId(null);
     setCustomerNotes('');
   };
 
@@ -435,6 +465,7 @@ export const PublicCustomerBookingPortal: React.FC = () => {
         faqs={siteContent.faqs}
         onPickDestination={(name) => {
           setDropoffLocation(name);
+          setDropoffPlaceId(null);
           document.getElementById('danh-sach-xe')?.scrollIntoView({ behavior: 'smooth' });
         }}
       />
@@ -669,29 +700,43 @@ export const PublicCustomerBookingPortal: React.FC = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block font-bold text-slate-700 mb-1">Điểm đón khách *</label>
-                    <input
-                      type="text"
+                    <PlaceInput
                       value={pickupLocation}
-                      onChange={(e) => setPickupLocation(e.target.value)}
-                      list="province-options"
+                      onChange={setPickupLocation}
+                      onPick={setPickupPlaceId}
+                      fallbackList="province-options"
                       placeholder="Chọn tỉnh/thành hoặc gõ địa chỉ đón..."
-                      className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
                       required
                     />
                   </div>
                   <div>
                     <label className="block font-bold text-slate-700 mb-1">Điểm đến *</label>
-                    <input
-                      type="text"
+                    <PlaceInput
                       value={dropoffLocation}
-                      onChange={(e) => setDropoffLocation(e.target.value)}
-                      list="province-options"
+                      onChange={setDropoffLocation}
+                      onPick={setDropoffPlaceId}
+                      fallbackList="province-options"
                       placeholder="Chọn tỉnh/thành hoặc gõ điểm đến..."
-                      className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
                       required
                     />
                   </div>
                 </div>
+                {routeInfo && (
+                  <p className="text-xs text-slate-600">
+                    Quãng đường ước tính: <strong>{routeInfo.km} km</strong> · khoảng{' '}
+                    <strong>
+                      {routeInfo.minutes >= 60
+                        ? `${Math.floor(routeInfo.minutes / 60)} giờ ${routeInfo.minutes % 60} phút`
+                        : `${routeInfo.minutes} phút`}
+                    </strong>{' '}
+                    (một chiều) · giá tạm tính theo quãng đường này
+                  </p>
+                )}
+                {routeInfo?.line && routeInfo.line.length > 1 && (
+                  <Suspense fallback={<div className="h-52 w-full rounded-xl bg-slate-100 animate-pulse" />}>
+                    <RouteMap line={routeInfo.line} bbox={routeInfo.bbox} />
+                  </Suspense>
+                )}
 
                 {/* Chọn lộ trình Cao tốc vs Quốc lộ */}
                 <div className="bg-blue-50/70 p-3.5 rounded-xl border border-blue-200 space-y-2.5">
