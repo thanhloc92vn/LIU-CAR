@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronDown, MapPin } from 'lucide-react';
+import { ChevronDown, ChevronRight, MapPin } from 'lucide-react';
 import { SiteDestination, SiteFaq } from '../types/fleet';
 
 interface TravelInfoSectionsProps {
@@ -49,28 +49,39 @@ export const TravelInfoSections: React.FC<TravelInfoSectionsProps> = ({ destinat
       )}
 
       {faqs.length > 0 && (
-      <section id="cau-hoi-thuong-gap" className="max-w-3xl w-full mx-auto px-4 sm:px-6 py-8">
+      <section id="cau-hoi-thuong-gap" className="max-w-7xl w-full mx-auto px-4 sm:px-6 py-8">
         <h2 className="text-xl font-semibold">Câu hỏi thường gặp</h2>
-        <div className="mt-4 space-y-2">
-          {faqs.map((f, i) => (
-            <div key={f.question} className="bg-white rounded-2xl shadow-sm overflow-hidden">
-              <button
-                type="button"
-                onClick={() => setOpenFaq(openFaq === i ? null : i)}
-                className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left text-sm font-medium"
-              >
-                <span>{f.question}</span>
-                <ChevronDown className={`w-4 h-4 shrink-0 text-slate-400 transition ${openFaq === i ? 'rotate-180' : ''}`} />
-              </button>
-              {openFaq === i && (
-                <div className="px-4 pb-4 space-y-2 text-sm text-slate-600">
-                  {f.answer.map((line) => (
-                    <p key={line}>{line}</p>
-                  ))}
-                </div>
-              )}
+        <div className="mt-4 md:grid md:grid-cols-2 md:gap-4 md:items-start">
+          <div className="space-y-2">
+            {faqs.map((f, i) => (
+              <div key={f.question} className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setOpenFaq(openFaq === i ? null : i)}
+                  className={`w-full flex items-center justify-between gap-3 px-4 py-3 text-left text-sm font-medium ${openFaq === i ? 'md:text-blue-600' : ''}`}
+                >
+                  <span>{f.question}</span>
+                  <ChevronDown className={`w-4 h-4 shrink-0 text-slate-400 transition md:hidden ${openFaq === i ? 'rotate-180' : ''}`} />
+                  <ChevronRight className="w-4 h-4 shrink-0 text-slate-400 hidden md:block" />
+                </button>
+                {openFaq === i && (
+                  <div className="px-4 pb-4 space-y-2 text-sm text-slate-600 md:hidden">
+                    {f.answer.map((line) => (
+                      <p key={line}>{line}</p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+          {openFaq !== null && faqs[openFaq] && (
+            <div className="hidden md:block bg-white rounded-2xl shadow-sm p-5 space-y-2 text-sm text-slate-600 sticky top-20">
+              <h3 className="font-medium text-slate-900">{faqs[openFaq].question}</h3>
+              {faqs[openFaq].answer.map((line) => (
+                <p key={line}>{line}</p>
+              ))}
             </div>
-          ))}
+          )}
         </div>
       </section>
       )}
