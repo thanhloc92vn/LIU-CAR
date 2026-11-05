@@ -933,7 +933,7 @@ export function App() {
                 <Car className="w-4 h-4 text-white" />
               </div>
               <div className="min-w-0">
-                <h1 className="text-sm font-semibold leading-tight truncate">Haydixe</h1>
+                <h1 className="text-sm font-semibold leading-tight truncate">Thuê xe nhà</h1>
                 <p className="text-xs text-slate-500 leading-tight truncate">
                   {activeTenant.shortName} · {authSession.role === 'ADMIN' ? 'Quản trị' : 'Tài xế'} · {authSession.fullName}
                 </p>

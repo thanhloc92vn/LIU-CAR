@@ -45,7 +45,7 @@ export const AuthLoginGate: React.FC<AuthLoginGateProps> = ({
           <div className="w-14 h-14 rounded-2xl bg-blue-600 mx-auto flex items-center justify-center">
             <Car className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-lg font-extrabold tracking-tight">Haydixe</h1>
+          <h1 className="text-lg font-extrabold tracking-tight">Thuê xe nhà</h1>
           <p className="text-sm text-slate-500">{companyName}</p>
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-xs font-medium text-emerald-700">
             <ShieldCheck className="w-3.5 h-3.5" />

@@ -1,6 +1,6 @@
 {
-  "name": "Haydixe - Quản lý xe tự lái & điều phối vận tải",
-  "short_name": "Haydixe",
+  "name": "Thuê xe nhà - Quản lý xe tự lái & điều phối vận tải",
+  "short_name": "Thuê xe nhà",
   "description": "Phần mềm quản lý đặt lịch xe tự lái, hồ sơ tài xế, đối soát chi phí tự cấn trừ và AI Bot Zalo/Telegram",
   "start_url": "/",
   "display": "standalone",

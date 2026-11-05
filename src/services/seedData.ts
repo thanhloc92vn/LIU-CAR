@@ -17,8 +17,8 @@ export const initialFleetDatabase: FleetDatabase = {
   tenants: [
     {
       id: 'TENANT-MAIN',
-      name: 'Haydixe',
-      shortName: 'Haydixe',
+      name: 'Thuê xe nhà',
+      shortName: 'Thuê xe nhà',
       taxCode: '',
       hotline: '0393953935',
       bankInfo: '',

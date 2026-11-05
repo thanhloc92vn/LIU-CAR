@@ -39,7 +39,7 @@ export default async function handler(req, res) {
       const ok = await sendMessage(
         token,
         link.chat_id,
-        `Bạn được điều phối chuyến #${trip.tripCode}\n\n${details}\n\nVui lòng xác nhận nhận chuyến trên ứng dụng Haydixe.`
+        `Bạn được điều phối chuyến #${trip.tripCode}\n\n${details}\n\nVui lòng xác nhận nhận chuyến trên ứng dụng Thuê xe nhà.`
       );
       dm = ok ? 'sent' : 'failed';
     }

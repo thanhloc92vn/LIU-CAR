@@ -36,7 +36,7 @@ async function handleLink(token, msg, chatId) {
   const code = msg.text.split(/\s+/).slice(1).find((t) => /^\d{6}$/.test(t));
   if (!code) {
     return reply(
-      'Để liên kết, hãy gửi lệnh kèm mã 6 số do điều hành cấp, ví dụ:\n/start 123456\n\nMã nằm trong hồ sơ tài xế của bạn trên ứng dụng Haydixe (điều hành tạo giúp).'
+      'Để liên kết, hãy gửi lệnh kèm mã 6 số do điều hành cấp, ví dụ:\n/start 123456\n\nMã nằm trong hồ sơ tài xế của bạn trên ứng dụng Thuê xe nhà (điều hành tạo giúp).'
     );
   }
   if (!hasServiceKey()) {

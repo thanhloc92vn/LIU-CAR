@@ -16,7 +16,7 @@ export function buildMessage(trip, vehicle, driver) {
         : 'Tài xế: chờ điều hành điều phối'
     );
   } else {
-    lines.push('Chuyến tự lái: chủ xe hoặc điều hành xác nhận trên ứng dụng Haydixe.');
+    lines.push('Chuyến tự lái: chủ xe hoặc điều hành xác nhận trên ứng dụng Thuê xe nhà.');
   }
   return lines.join(String.fromCharCode(10));
 }
