@@ -1,5 +1,6 @@
 import { PROVINCES } from '../data/provinces';
 import { PlaceInput } from './PlaceInput';
+import { todayLocal } from '../utils/date';
 import { resolveSiteContent } from '../data/siteContent';
 import React, { lazy, Suspense, useEffect, useState } from 'react';
 import {
@@ -35,13 +36,6 @@ import { TravelInfoSections } from './TravelInfoSections';
 const CarShowcase3D = lazy(() => import('./CarShowcase3D'));
 // Thư viện bản đồ cũng nặng: chỉ tải khi khách đã chọn đủ điểm đón và điểm đến
 const RouteMap = lazy(() => import('./RouteMap'));
-
-// Ngày hôm nay theo giờ máy khách (YYYY-MM-DD), không dùng toISOString vì lệch múi giờ UTC
-const todayLocal = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-};
-
 // Kết quả tra cứu do máy chủ trả (chỉ phần khách cần xem)
 interface LookupTrip {
   tripCode: string;

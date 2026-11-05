@@ -27,6 +27,7 @@ import {
   Vehicle,
 } from '../types/fleet';
 import { ownsVehicle } from '../utils/party';
+import { todayLocal } from '../utils/date';
 import { calculateTripFinancials, formatVND } from '../utils/calculations';
 import { DEFAULT_BATTERY_RATE_PER_KM, getJourneyPricing, journeyTollFor } from '../utils/journey';
 
@@ -78,7 +79,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   const [customerCccd, setCustomerCccd] = useState('');
   const [customerLicense, setCustomerLicense] = useState('');
 
-  const [tripDate, setTripDate] = useState('2026-10-31');
+  const [tripDate, setTripDate] = useState(todayLocal);
   const [departureTime, setDepartureTime] = useState('07:30');
   const [returnTime, setReturnTime] = useState('19:30');
   const [tripEndDate, setTripEndDate] = useState('');
@@ -176,7 +177,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
       setCustomerPhone('');
       setCustomerCccd('');
       setCustomerLicense('');
-      setTripDate('2026-10-31');
+      setTripDate(todayLocal());
       setTripEndDate('');
       setJourneyRouteId('');
       setIsHolidayRate(false);
