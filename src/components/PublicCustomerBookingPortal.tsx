@@ -36,6 +36,12 @@ const CarShowcase3D = lazy(() => import('./CarShowcase3D'));
 // Thư viện bản đồ cũng nặng: chỉ tải khi khách đã chọn đủ điểm đón và điểm đến
 const RouteMap = lazy(() => import('./RouteMap'));
 
+// Ngày hôm nay theo giờ máy khách (YYYY-MM-DD), không dùng toISOString vì lệch múi giờ UTC
+const todayLocal = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
 // Kết quả tra cứu do máy chủ trả (chỉ phần khách cần xem)
 interface LookupTrip {
   tripCode: string;
@@ -87,7 +93,7 @@ export const PublicCustomerBookingPortal: React.FC = () => {
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerCccd, setCustomerCccd] = useState('');
   const [customerLicense, setCustomerLicense] = useState('');
-  const [tripDate, setTripDate] = useState('2026-11-01');
+  const [tripDate, setTripDate] = useState(todayLocal);
   const [departureTime, setDepartureTime] = useState('07:30');
   const [returnTime, setReturnTime] = useState('19:30');
   const [pickupLocation, setPickupLocation] = useState('');
@@ -667,6 +673,7 @@ export const PublicCustomerBookingPortal: React.FC = () => {
                     <input
                       type="date"
                       value={tripDate}
+                      min={todayLocal()}
                       onChange={(e) => setTripDate(e.target.value)}
                       className="w-full rounded-xl border border-slate-300 px-2.5 py-2"
                       required
