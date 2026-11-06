@@ -1,0 +1,24 @@
+name: Keep ThueXeNha Supabase Active
+
+on:
+  schedule:
+    # Chạy tự động lúc 02:00 UTC mỗi ngày (tức 09:00 sáng giờ Việt Nam)
+    - cron: '0 2 * * *'
+  # Cho phép bấm chạy thử thủ công bất cứ lúc nào
+  workflow_dispatch:
+
+jobs:
+  ping-supabase-catalog:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Gọi trang chủ và API danh mục xe để đánh thức Supabase
+        run: |
+          echo "1. Đang truy cập trang chủ https://thuexenha.com/ ..."
+          curl -sL -o /dev/null -w "Mã phản hồi trang chủ: %{http_code}\n" https://thuexenha.com/
+
+          echo "2. Đang truy vấn dữ liệu xe từ Supabase qua API ..."
+          RESPONSE=$(curl -sL https://www.thuexenha.com/api/public-catalog)
+          echo "Dữ liệu phản hồi từ API:"
+          echo "$RESPONSE" | head -c 500
+          echo ""
+          echo "Hoàn tất! Cơ sở dữ liệu Supabase đã được làm mới hoạt động."
