@@ -1,7 +1,7 @@
 // Điều hành điều phối tài xế cho một chuyến: nhắn riêng tài xế (nếu đã liên kết Telegram) và báo nhóm.
 // Chỉ nhận mã chuyến. Máy chủ chỉ gửi khi chuyến đã được đánh dấu điều phối (dispatchedAt) trong dữ liệu đã lưu.
 // Biến môi trường: TELEGRAM_BOT_TOKEN, TELEGRAM_DISPATCH_CHAT_ID.
-import { buildTripLines, getLinkByDriver, loadState, sendMessage } from './_shared.js';
+import { buildTripLines, getLinkByDriver, loadState, sendMessage, sendPickupLocation } from './_shared.js';
 
 const recent = new Map();
 
@@ -42,6 +42,7 @@ export default async function handler(req, res) {
         `Bạn được điều phối chuyến #${trip.tripCode}\n\n${details}\n\nVui lòng xác nhận nhận chuyến trên ứng dụng Thuê xe nhà.`
       );
       dm = ok ? 'sent' : 'failed';
+      if (ok) await sendPickupLocation(token, link.chat_id, trip).catch(() => false);
     }
 
     await sendMessage(

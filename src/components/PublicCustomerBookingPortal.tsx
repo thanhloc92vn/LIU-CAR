@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   Clock,
   KeyRound,
+  LocateFixed,
   MapPin,
   Navigation,
   Phone,
@@ -94,11 +95,14 @@ export const PublicCustomerBookingPortal: React.FC = () => {
   const [dropoffLocation, setDropoffLocation] = useState('');
   const [pickupPlaceId, setPickupPlaceId] = useState<string | null>(null);
   const [dropoffPlaceId, setDropoffPlaceId] = useState<string | null>(null);
+  const [locating, setLocating] = useState(false);
+  const [locateError, setLocateError] = useState('');
   const [routeInfo, setRouteInfo] = useState<{
     km: number;
     minutes: number;
     line?: [number, number][];
     bbox?: [number, number, number, number];
+    pickup?: [number, number];
   } | null>(null);
   const [routeType, setRouteType] = useState<RouteType>('HIGHWAY');
   const [selectedPresetId, setSelectedPresetId] = useState<string>(highwayPresets[0]?.id || '');
@@ -155,6 +159,48 @@ export const PublicCustomerBookingPortal: React.FC = () => {
     } catch {
       setLookupError('Không kết nối được máy chủ, vui lòng thử lại.');
     }
+  };
+
+  // Chỉ hỏi quyền vị trí khi khách bấm "Vị trí của tôi", không hỏi lúc mở trang
+  const handleUseMyLocation = () => {
+    if (!navigator.geolocation) {
+      setLocateError('Trình duyệt không hỗ trợ định vị, vui lòng gõ điểm đi.');
+      return;
+    }
+    setLocating(true);
+    setLocateError('');
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const { latitude, longitude } = pos.coords;
+          const r = await fetch(`/api/maps?type=reverse&lat=${latitude}&lng=${longitude}`);
+          const d = await r.json().catch(() => null);
+          if (!r.ok || !d?.placeId) {
+            setLocateError(
+              d?.error === 'outside_vietnam'
+                ? 'Vị trí của bạn đang ở ngoài Việt Nam, vui lòng gõ điểm đi.'
+                : 'Chưa lấy được địa chỉ từ vị trí, vui lòng gõ điểm đi.'
+            );
+            return;
+          }
+          setPickupLocation(d.description);
+          setPickupPlaceId(d.placeId);
+        } catch {
+          setLocateError('Chưa lấy được địa chỉ từ vị trí, vui lòng gõ điểm đi.');
+        } finally {
+          setLocating(false);
+        }
+      },
+      (err) => {
+        setLocating(false);
+        setLocateError(
+          err.code === err.PERMISSION_DENIED
+            ? 'Bạn chưa cho phép truy cập vị trí. Bật quyền Vị trí cho trang này trong cài đặt trình duyệt, hoặc gõ điểm đi.'
+            : 'Không xác định được vị trí lúc này, vui lòng gõ điểm đi.'
+        );
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
+    );
   };
 
   const handleOpenBookVehicle = (veh: Vehicle) => {
@@ -216,6 +262,8 @@ export const PublicCustomerBookingPortal: React.FC = () => {
         ? `Theo bản đồ: ${routeInfo.km} km/chiều${preset ? ` · phí cao tốc theo tuyến ${preset.name}` : ''}`
         : preset?.name || 'Theo lộ trình khách chọn',
       distanceKm,
+      pickupLat: routeInfo?.pickup?.[0],
+      pickupLng: routeInfo?.pickup?.[1],
       isRoundTrip,
       baseFareRevenue: estimatedFare,
       autoHighwayToll,
@@ -323,6 +371,82 @@ export const PublicCustomerBookingPortal: React.FC = () => {
                 Tự lái theo ngày
               </button>
             </div>
+          </div>
+        </div>
+
+        <datalist id="province-options">
+          {PROVINCES.map((p) => (
+            <option key={p} value={p} />
+          ))}
+        </datalist>
+
+        {/* Chọn điểm đi / điểm đến ngay trên trang; dùng chung state với form đặt xe nên mở form là đã điền sẵn */}
+        <div className="max-w-3xl mx-auto px-4 mt-6">
+          <div className="bg-white rounded-2xl shadow-sm p-4 sm:p-5 space-y-3 text-left">
+            <h2 className="text-lg font-semibold">Bạn muốn đến đâu?</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="font-medium text-slate-700">Điểm đi</label>
+                  <button
+                    type="button"
+                    onClick={handleUseMyLocation}
+                    disabled={locating}
+                    className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700 disabled:text-slate-400"
+                  >
+                    <LocateFixed className="w-3.5 h-3.5" />
+                    {locating ? 'Đang định vị...' : 'Vị trí của tôi'}
+                  </button>
+                </div>
+                <PlaceInput
+                  value={pickupLocation}
+                  onChange={setPickupLocation}
+                  onPick={setPickupPlaceId}
+                  fallbackList="province-options"
+                  placeholder="Gõ địa chỉ đón..."
+                />
+              </div>
+              <div>
+                <label className="block font-medium text-slate-700 mb-1">Điểm đến</label>
+                <PlaceInput
+                  value={dropoffLocation}
+                  onChange={setDropoffLocation}
+                  onPick={setDropoffPlaceId}
+                  fallbackList="province-options"
+                  placeholder="Gõ nơi bạn muốn đến..."
+                />
+              </div>
+            </div>
+            {locateError && <p className="text-xs text-amber-700">{locateError}</p>}
+            {routeInfo && (
+              <>
+                <p className="text-xs text-slate-600">
+                  Quãng đường ước tính: <strong>{routeInfo.km} km</strong> · khoảng{' '}
+                  <strong>
+                    {routeInfo.minutes >= 60
+                      ? `${Math.floor(routeInfo.minutes / 60)} giờ ${routeInfo.minutes % 60} phút`
+                      : `${routeInfo.minutes} phút`}
+                  </strong>{' '}
+                  (một chiều)
+                </p>
+                {routeInfo.line && routeInfo.line.length > 1 && (
+                  <Suspense fallback={<div className="h-52 w-full rounded-xl bg-slate-100 animate-pulse" />}>
+                    <RouteMap line={routeInfo.line} bbox={routeInfo.bbox} />
+                  </Suspense>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const first = filteredVehicles[0] || vehicles[0];
+                    if (first) handleOpenBookVehicle(first);
+                  }}
+                  disabled={vehicles.length === 0}
+                  className="w-full h-10 rounded-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white text-sm font-medium transition"
+                >
+                  Đặt xe cho chuyến này
+                </button>
+              </>
+            )}
           </div>
         </div>
       </section>
@@ -499,6 +623,23 @@ export const PublicCustomerBookingPortal: React.FC = () => {
                 <p className="text-xs text-slate-500">
                   Biển số: {selectedVehicle.plateNumber} • Xác nhận lịch tự động qua Zalo / SĐT
                 </p>
+                {!createdBooking && vehicles.length > 1 && (
+                  <select
+                    value={selectedVehicle.id}
+                    onChange={(e) => {
+                      const v = vehicles.find((x) => x.id === e.target.value);
+                      if (v) setSelectedVehicle(v);
+                    }}
+                    aria-label="Đổi xe"
+                    className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs"
+                  >
+                    {vehicles.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        [{v.seatCategory}] {v.brand} {v.model} · {v.plateNumber}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
               <button
                 type="button"
@@ -693,11 +834,6 @@ export const PublicCustomerBookingPortal: React.FC = () => {
                   </div>
                 </div>
 
-                <datalist id="province-options">
-                  {PROVINCES.map((p) => (
-                    <option key={p} value={p} />
-                  ))}
-                </datalist>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block font-bold text-slate-700 mb-1">Điểm đón khách *</label>

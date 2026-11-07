@@ -87,7 +87,18 @@ export async function sendMessage(token, chatId, text, replyTo) {
   return res.ok;
 }
 
-const ROUTE_LABELS = { HIGHWAY: 'Cao tốc', NATIONAL_ROAD: 'Quốc lộ', MIXED: 'Cao tốc + quốc lộ' };
+// Ghim vị trí điểm đón (tin vị trí của Telegram, bấm vào mở bản đồ chỉ đường). Chuyến không có toạ độ thì bỏ qua.
+export async function sendPickupLocation(token, chatId, trip) {
+  if (typeof trip.pickupLat !== 'number' || typeof trip.pickupLng !== 'number') return false;
+  const res = await fetch(`https://api.telegram.org/bot${token}/sendLocation`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chat_id: chatId, latitude: trip.pickupLat, longitude: trip.pickupLng }),
+  });
+  return res.ok;
+}
+
+const ROUTE_LABELS ={ HIGHWAY: 'Cao tốc', NATIONAL_ROAD: 'Quốc lộ', MIXED: 'Cao tốc + quốc lộ' };
 
 // Nội dung chuyến gửi Telegram. Không có doanh thu hay tiền công vì nhóm có nhiều người xem.
 export function buildTripLines(trip, vehicle) {
@@ -96,6 +107,9 @@ export function buildTripLines(trip, vehicle) {
     `Hình thức: ${selfDrive ? 'Thuê tự lái' : 'Có tài xế'}`,
     `Xe: ${vehicle ? `${vehicle.brand} ${vehicle.model} (${vehicle.plateNumber}), ${vehicle.seatCategory}` : 'chưa chọn xe'}`,
     `Lộ trình: ${trip.pickupLocation} → ${trip.dropoffLocation}`,
+    ...(typeof trip.pickupLat === 'number' && typeof trip.pickupLng === 'number'
+      ? [`Định vị điểm đón: https://www.google.com/maps?q=${trip.pickupLat},${trip.pickupLng}`]
+      : []),
     `Tuyến: ${ROUTE_LABELS[trip.routeType] || ''} · ${trip.distanceKm || 0} km`,
     `Thời gian: ${trip.tripDate}${trip.tripEndDate && trip.tripEndDate !== trip.tripDate ? ` → ${trip.tripEndDate}` : ''} (${trip.departureTime} - ${trip.returnTime})`,
     `Khách: ${trip.customerName} (${trip.customerPhone})`,

@@ -576,9 +576,15 @@ export function App() {
     if (existingId) {
       setDb((prev) => ({
         ...prev,
-        trips: prev.trips.map((t) =>
-          t.id === existingId ? { ...t, ...tripData } : t
-        ),
+        trips: prev.trips.map((t) => {
+          if (t.id !== existingId) return t;
+          // Đổi địa chỉ đón thì toạ độ cũ không còn đúng: bỏ đi để bot không ghim sai chỗ
+          if (tripData.pickupLocation !== t.pickupLocation) {
+            const { pickupLat, pickupLng, ...rest } = t;
+            return { ...rest, ...tripData };
+          }
+          return { ...t, ...tripData };
+        }),
       }));
       showToast(`Đã cập nhật chuyến #${tripData.tripCode} và tính lại số thực tế còn lại vào TK!`);
     } else {

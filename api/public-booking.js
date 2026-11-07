@@ -1,13 +1,19 @@
 // Khách đặt lịch trên trang công khai. Máy chủ chỉ nhận các trường khách được điền, tự đặt mã/trạng thái,
 // nối chuyến vào DB bằng RPC append_trip (không ghi đè dữ liệu khác) rồi báo nhóm điều hành Telegram.
 // Biến môi trường: SUPABASE_SERVICE_KEY, TELEGRAM_BOT_TOKEN, TELEGRAM_DISPATCH_CHAT_ID (Telegram không bắt buộc).
-import { hasServiceKey, loadState, rateLimited, rpc, sendMessage } from './_shared.js';
+import { hasServiceKey, loadState, rateLimited, rpc, sendMessage, sendPickupLocation } from './_shared.js';
 import { buildMessage } from './telegram-notify-trip.js';
 
 const hits = new Map();
 
 const str = (v, max = 300) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
 const num = (v) => (Number.isFinite(Number(v)) && Number(v) >= 0 ? Math.round(Number(v)) : 0);
+// Toạ độ điểm đón chỉ nhận khi nằm trong khung lãnh thổ Việt Nam
+const pickupCoords = (lat, lng) => {
+  const a = Number(lat);
+  const b = Number(lng);
+  return a >= 7 && a <= 24 && b >= 101 && b <= 118 ? { pickupLat: a, pickupLng: b } : {};
+};
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
@@ -51,6 +57,7 @@ export default async function handler(req, res) {
       departureTime: time(b.departureTime, '07:30'),
       returnTime: time(b.returnTime, '19:30'),
       pickupLocation: str(b.pickupLocation) || 'TP.HCM',
+      ...pickupCoords(b.pickupLat, b.pickupLng),
       dropoffLocation: str(b.dropoffLocation) || 'Theo lộ trình',
       routeType,
       routeDetail: str(b.routeDetail) || 'Theo lộ trình khách chọn',
@@ -98,7 +105,10 @@ export default async function handler(req, res) {
 
     const token = process.env.TELEGRAM_BOT_TOKEN;
     const chatId = process.env.TELEGRAM_DISPATCH_CHAT_ID;
-    if (token && chatId) await sendMessage(token, chatId, text).catch(() => false);
+    if (token && chatId) {
+      await sendMessage(token, chatId, text).catch(() => false);
+      await sendPickupLocation(token, chatId, trip).catch(() => false);
+    }
 
     return res.status(200).json({ ok: true, trip });
   } catch {

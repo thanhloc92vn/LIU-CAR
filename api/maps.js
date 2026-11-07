@@ -1,6 +1,8 @@
 // Gợi ý địa chỉ và tính quãng đường qua Vietmap (v4). Khóa VIETMAP_API_KEY chỉ nằm ở server.
 //   GET /api/maps?type=autocomplete&input=...       -> { predictions: [{ description, placeId }] }
-//   GET /api/maps?type=route&from=<placeId>&to=<placeId> -> { km, minutes, line: [[lng,lat],...], bbox }
+//   GET /api/maps?type=reverse&lat=..&lng=..        -> { description, placeId: 'geo:lat,lng' }
+//   GET /api/maps?type=route&from=<placeId>&to=<placeId> -> { km, minutes, line: [[lng,lat],...], bbox, pickup: [lat,lng] }
+// placeId là ref_id của Vietmap, hoặc 'geo:lat,lng' khi khách dùng vị trí thiết bị
 import { rateLimited } from './_shared.js';
 
 const BASE = 'https://maps.vietmap.vn/api';
@@ -14,7 +16,20 @@ async function vietmap(path, params) {
   return r.json();
 }
 
+// Toạ độ hợp lệ trong khung lãnh thổ Việt Nam, trả "lat,lng" hoặc null
+function geoPoint(lat, lng) {
+  const a = Number(lat);
+  const b = Number(lng);
+  if (!(a >= 7 && a <= 24 && b >= 101 && b <= 118)) return null;
+  return `${a.toFixed(6)},${b.toFixed(6)}`;
+}
+
 async function placeLatLng(refId) {
+  if (refId.startsWith('geo:')) {
+    const p = geoPoint(...refId.slice(4).split(','));
+    if (!p) throw new Error('bad_point');
+    return p;
+  }
   const d = await vietmap('place/v4', { refid: refId });
   if (typeof d?.lat !== 'number') throw new Error('place_not_found');
   return `${d.lat},${d.lng}`;
@@ -36,6 +51,15 @@ export default async function handler(req, res) {
       });
     }
 
+    if (type === 'reverse') {
+      const p = geoPoint(req.query?.lat, req.query?.lng);
+      if (!p) return res.status(400).json({ error: 'outside_vietnam' });
+      const [lat, lng] = p.split(',');
+      const d = await vietmap('reverse/v4', { lat, lng });
+      const first = Array.isArray(d) ? d[0] : null;
+      return res.status(200).json({ description: first?.display || `Vị trí ${p}`, placeId: `geo:${p}` });
+    }
+
     if (type === 'route') {
       const from = String(req.query?.from || '');
       const to = String(req.query?.to || '');
@@ -53,6 +77,8 @@ export default async function handler(req, res) {
         minutes: Math.round(path.time / 60000),
         line,
         bbox: path.bbox,
+        // Toạ độ điểm đón để gửi kèm lịch đặt, bot Telegram ghim vị trí cho tài xế
+        pickup: points[0].split(',').map(Number),
       });
     }
 

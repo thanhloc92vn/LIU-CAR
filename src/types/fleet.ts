@@ -197,6 +197,8 @@ export interface Trip {
   departureTime: string;     // HH:mm
   returnTime: string;        // HH:mm
   pickupLocation: string;
+  pickupLat?: number;        // toạ độ điểm đón khi khách chọn từ bản đồ, bot gửi vị trí cho tài xế
+  pickupLng?: number;
   dropoffLocation: string;
   routeType: RouteType;      // HIGHWAY (Cao tốc) | NATIONAL_ROAD (Quốc lộ) | MIXED (Kết hợp)
   routeDetail: string;       // Tên tuyến cụ thể (VD: Cao tốc TP.HCM - Long Thành - Phan Thiết)

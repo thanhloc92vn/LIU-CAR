@@ -2,7 +2,7 @@
 // xem telegram-dispatch-driver.js). Nội dung tin được dựng ở máy chủ từ dữ liệu đã lưu, không nhận chữ từ trình duyệt.
 // Biến môi trường: TELEGRAM_BOT_TOKEN, TELEGRAM_DISPATCH_CHAT_ID.
 
-import { buildTripLines, loadState, sendMessage } from './_shared.js';
+import { buildTripLines, loadState, sendMessage, sendPickupLocation } from './_shared.js';
 
 // Chống bấm lặp: cùng một chuyến không gửi lại trong 30 giây (theo từng máy chủ đang chạy)
 const recent = new Map();
@@ -45,6 +45,7 @@ export default async function handler(req, res) {
     const text = buildMessage(trip, vehicle, driver);
     const sent = await sendMessage(token, chatId, text);
     if (!sent) return res.status(502).json({ error: 'telegram_failed' });
+    await sendPickupLocation(token, chatId, trip).catch(() => false);
 
     recent.set(tripId, Date.now());
     return res.status(200).json({ ok: true });
