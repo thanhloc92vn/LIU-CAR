@@ -72,3 +72,13 @@
   background: #aeaeb2;
   background-clip: content-box;
 }
+
+/* iPhone (Safari) tự phóng to trang khi bấm vào ô nhập chữ nhỏ hơn 16px: trên điện thoại giữ ô nhập 16px.
+   Cần !important để thắng các lớp cỡ chữ của Tailwind (text-xs, text-sm) gắn trên từng ô. */
+@media (max-width: 639px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}

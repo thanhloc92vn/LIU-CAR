@@ -1,5 +1,6 @@
 import { Driver, HighwayPreset, SeatCategory, Trip, Vehicle } from '../types/fleet';
 import { calculateTripFinancials, formatVND } from './calculations';
+import { addDaysLocal } from './date';
 
 export interface ParsedAICommand {
   intent: 'CREATE_BOOKING' | 'REASSIGN_TAG_DRIVER' | 'ADD_RISK_EXPENSE' | 'UNKNOWN';
@@ -127,12 +128,15 @@ export function parseNaturalBookingCommand(
   const manualExpenseTotal = extractMoneyAfterKeyword(['nhập tay', 'chi phí thêm', 'rửa xe', 'nước']);
 
   // 5. Parse Date & Time
-  const today = new Date('2026-10-31T14:00:00+07:00');
-  let tripDate = '2026-11-01';
+  // Mặc định ngày mai; "hôm nay", "ngày mốt" hoặc ngày dạng dd/mm (năm hiện tại)
+  let tripDate = addDaysLocal(1);
+  const dayMonth = lower.match(/\b(\d{1,2})\/(\d{1,2})\b/);
   if (lower.includes('hôm nay')) {
-    tripDate = '2026-10-31';
-  } else if (lower.includes('ngày mốt') || lower.includes('02/11')) {
-    tripDate = '2026-11-02';
+    tripDate = addDaysLocal(0);
+  } else if (lower.includes('ngày mốt')) {
+    tripDate = addDaysLocal(2);
+  } else if (dayMonth) {
+    tripDate = `${new Date().getFullYear()}-${dayMonth[2].padStart(2, '0')}-${dayMonth[1].padStart(2, '0')}`;
   }
 
   const timeMatch = input.match(/\b([01]?[0-9]|2[0-3])\s*(?:h|:|giờ)\s*([0-5][0-9])?/i);

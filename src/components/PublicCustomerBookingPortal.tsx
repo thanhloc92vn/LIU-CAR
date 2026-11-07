@@ -1010,7 +1010,8 @@ export const PublicCustomerBookingPortal: React.FC = () => {
                   </Suspense>
                 )}
 
-                {/* Chọn lộ trình Cao tốc vs Quốc lộ */}
+                {/* Chọn lộ trình Cao tốc vs Quốc lộ (chỉ ảnh hưởng giá xe có tài xế, tự lái không cần) */}
+                {serviceType !== 'SELF_DRIVE' && (
                 <div className="bg-blue-50/70 p-3.5 rounded-xl border border-blue-200 space-y-2.5">
                   <label className="block font-bold text-blue-950">
                     Tùy chọn lộ trình di chuyển (Cao tốc hay Quốc lộ):
@@ -1057,6 +1058,7 @@ export const PublicCustomerBookingPortal: React.FC = () => {
                     </select>
                   </div>
                 </div>
+                )}
 
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">

@@ -60,7 +60,7 @@ const CarShowcase3D: React.FC = () => {
 
   useEffect(() => {
     indexRef.current = index;
-    for (const d of [0, 1, -1]) loadRef.current(mod(index + d, N));
+    loadRef.current(mod(index, N));
   }, [index]);
 
   useEffect(() => {
@@ -96,8 +96,16 @@ const CarShowcase3D: React.FC = () => {
     const cars = new Map<number, LoadedCar>();
     const pending = new Set<number>();
 
+    // Tải xe đang xem trước; xong mới tải hai xe hai bên để xe chính hiện nhanh nhất
+    const loadNeighbors = (i: number) => {
+      for (const d of [1, -1]) loadRef.current(mod(i + d, N));
+    };
     loadRef.current = (i: number) => {
-      if (cars.has(i) || pending.has(i)) return;
+      if (cars.has(i)) {
+        if (i === mod(indexRef.current, N)) loadNeighbors(i);
+        return;
+      }
+      if (pending.has(i)) return;
       pending.add(i);
       loader.load(
         SHOWCASE_CARS[i].file,
@@ -138,13 +146,16 @@ const CarShowcase3D: React.FC = () => {
           root.visible = false;
           scene.add(root);
           cars.set(i, { root, bodyMats, seats, shadow });
-          if (i === mod(indexRef.current, N)) setLoading(false);
+          if (i === mod(indexRef.current, N)) {
+            setLoading(false);
+            loadNeighbors(i);
+          }
         },
         undefined,
         () => pending.delete(i)
       );
     };
-    for (const d of [0, 1, -1]) loadRef.current(mod(indexRef.current + d, N));
+    loadRef.current(mod(indexRef.current, N));
 
     // --- Kéo để xoay, vuốt nhanh để đổi xe ---
     let pos = indexRef.current; // vị trí carousel đang trượt tới index

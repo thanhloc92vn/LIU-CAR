@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { Driver, RouteType, SeatCategory, Trip, Vehicle } from '../types/fleet';
 import { calculateTripFinancials, formatVND } from '../utils/calculations';
+import { monthRangeLocal, todayLocal } from '../utils/date';
 
 interface FinanceSettlementTabProps {
   trips: Trip[];
@@ -67,15 +68,13 @@ export const FinanceSettlementTab: React.FC<FinanceSettlementTabProps> = ({
     if (preset === 'ALL') {
       setDateFrom('');
       setDateTo('');
-    } else if (preset === '2026-10') {
-      setDateFrom('2026-10-01');
-      setDateTo('2026-10-31');
-    } else if (preset === '2026-11') {
-      setDateFrom('2026-11-01');
-      setDateTo('2026-11-30');
+    } else if (preset === 'THIS_MONTH' || preset === 'LAST_MONTH') {
+      const r = monthRangeLocal(preset === 'THIS_MONTH' ? 0 : -1);
+      setDateFrom(r.from);
+      setDateTo(r.to);
     } else if (preset === 'TODAY') {
-      setDateFrom('2026-10-31');
-      setDateTo('2026-10-31');
+      setDateFrom(todayLocal());
+      setDateTo(todayLocal());
     }
   };
 
@@ -358,9 +357,9 @@ export const FinanceSettlementTab: React.FC<FinanceSettlementTabProps> = ({
               className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-900"
             >
               <option value="ALL">Tất cả thời gian</option>
-              <option value="TODAY">Hôm nay (31/10/2026)</option>
-              <option value="2026-10">Tháng 10 / 2026</option>
-              <option value="2026-11">Tháng 11 / 2026</option>
+              <option value="TODAY">Hôm nay ({todayLocal().split('-').reverse().join('/')})</option>
+              <option value="THIS_MONTH">Tháng này ({monthRangeLocal(0).label})</option>
+              <option value="LAST_MONTH">Tháng trước ({monthRangeLocal(-1).label})</option>
             </select>
           </div>
 
