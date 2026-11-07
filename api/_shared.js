@@ -79,17 +79,63 @@ export async function rpc(name, args) {
   return res.ok;
 }
 
+// IP khách: ưu tiên header do Vercel tự gắn (khách không giả được), chạy trên máy thì lấy x-forwarded-for
+export const clientIp = (req) =>
+  String(req.headers['x-real-ip'] || req.headers['x-vercel-forwarded-for'] || req.headers['x-forwarded-for'] || '')
+    .split(',')[0]
+    .trim() || 'unknown';
+
 // Giới hạn số lần gọi theo IP trong một khoảng thời gian (theo từng máy chủ đang chạy)
 export function rateLimited(store, req, max, windowMs) {
-  const ip = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || 'unknown';
+  return countInMemory(store, clientIp(req), max, windowMs);
+}
+
+function countInMemory(store, key, max, windowMs) {
   const now = Date.now();
-  const entry = store.get(ip);
+  const entry = store.get(key);
   if (!entry || now - entry.first > windowMs) {
-    store.set(ip, { count: 1, first: now });
+    store.set(key, { count: 1, first: now });
     return false;
   }
   entry.count += 1;
   return entry.count > max;
+}
+
+const fallbackCounts = new Map();
+
+// Đã vượt giới hạn chưa (đếm chung mọi máy chủ qua hit_rate_limit trong supabase/rate_limits.sql).
+// Chưa cài SQL hoặc Supabase lỗi thì đếm tạm trong bộ nhớ của máy chủ này.
+export async function limited(key, max, windowSec) {
+  if (hasServiceKey()) {
+    try {
+      const res = await fetch(`${supabaseUrl()}/rest/v1/rpc/hit_rate_limit`, {
+        method: 'POST',
+        headers: headers({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ p_key: key, p_max: max, p_window_seconds: windowSec }),
+      });
+      if (res.ok) return (await res.json()) === true;
+    } catch {
+      // dùng bộ đếm tạm bên dưới
+    }
+  }
+  return countInMemory(fallbackCounts, key, max, windowSec * 1000);
+}
+
+// Xác minh người thật bằng Cloudflare Turnstile. Chưa đặt TURNSTILE_SECRET_KEY thì bỏ qua (chưa bật).
+export async function verifyHuman(req, token) {
+  const secret = process.env.TURNSTILE_SECRET_KEY;
+  if (!secret) return true;
+  if (typeof token !== 'string' || !token) return false;
+  try {
+    const res = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ secret, response: token, remoteip: clientIp(req) }),
+    });
+    return (await res.json())?.success === true;
+  } catch {
+    return false;
+  }
 }
 
 export async function sendMessage(token, chatId, text, replyTo) {

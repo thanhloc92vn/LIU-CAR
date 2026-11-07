@@ -2,6 +2,7 @@ import { PROVINCES } from '../data/provinces';
 import { PlaceInput } from './PlaceInput';
 import { todayLocal } from '../utils/date';
 import { RentalContract } from './RentalContract';
+import { HUMAN_CHECK_ENABLED, HumanCheck } from './HumanCheck';
 import { resolveSiteContent } from '../data/siteContent';
 import React, { lazy, Suspense, useEffect, useState } from 'react';
 import {
@@ -147,6 +148,9 @@ export const PublicCustomerBookingPortal: React.FC = () => {
   const [lookupResult, setLookupResult] = useState<LookupTrip[] | null>(null);
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [showLookupModal, setShowLookupModal] = useState(false);
+  // Mã xác minh người thật (Turnstile) cho form đặt xe và tra cứu; mỗi mã chỉ dùng một lần
+  const [humanToken, setHumanToken] = useState('');
+  const [humanReset, setHumanReset] = useState(0);
 
   const brands = Array.from(new Set(vehicles.map((v) => v.brand)));
 
@@ -163,7 +167,7 @@ export const PublicCustomerBookingPortal: React.FC = () => {
     setLookupResult(null);
     try {
       const res = await fetch(
-        `/api/public-lookup?code=${encodeURIComponent(lookupCode.trim())}&phone=${encodeURIComponent(lookupPhone.trim())}`
+        `/api/public-lookup?code=${encodeURIComponent(lookupCode.trim())}&phone=${encodeURIComponent(lookupPhone.trim())}&t=${encodeURIComponent(humanToken)}`
       );
       const data = await res.json().catch(() => null);
       if (res.ok) setLookupResult(data?.trips || []);
@@ -171,6 +175,7 @@ export const PublicCustomerBookingPortal: React.FC = () => {
     } catch {
       setLookupError('Không kết nối được máy chủ, vui lòng thử lại.');
     }
+    setHumanReset((n) => n + 1);
   };
 
   // Chỉ hỏi quyền vị trí khi khách bấm "Vị trí của tôi", không hỏi lúc mở trang
@@ -301,6 +306,7 @@ export const PublicCustomerBookingPortal: React.FC = () => {
       autoFuelQuota,
       autoDispatchFee,
       notes: customerNotes.trim(),
+      turnstileToken: humanToken,
     };
 
     setSubmitting(true);
@@ -323,6 +329,7 @@ export const PublicCustomerBookingPortal: React.FC = () => {
       return;
     } finally {
       setSubmitting(false);
+      setHumanReset((n) => n + 1);
     }
     setCustomerName('');
     setCustomerPhone('');
@@ -1097,6 +1104,11 @@ export const PublicCustomerBookingPortal: React.FC = () => {
                   </div>
                 )}
 
+                {/* Xác minh người thật ở bước gửi lịch (tự lái: sau khi xem hợp đồng) */}
+                {(serviceType !== 'SELF_DRIVE' || showContract) && (
+                  <HumanCheck onToken={setHumanToken} resetSignal={humanReset} />
+                )}
+
                 <div className="flex items-center justify-end gap-2 pt-2">
                   {serviceType === 'SELF_DRIVE' && (
                     <div className="mr-auto">
@@ -1124,8 +1136,11 @@ export const PublicCustomerBookingPortal: React.FC = () => {
                   </button>
                   <button
                     type="submit"
-                    disabled={submitting}
-                    className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold transition whitespace-nowrap"
+                    disabled={
+                      submitting ||
+                      (HUMAN_CHECK_ENABLED && !humanToken && (serviceType !== 'SELF_DRIVE' || showContract))
+                    }
+                    className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-extrabold transition whitespace-nowrap"
                   >
                     {submitting
                       ? 'Đang gửi...'
@@ -1163,7 +1178,7 @@ export const PublicCustomerBookingPortal: React.FC = () => {
                       type="text"
                       value={lookupCode}
                       onChange={(e) => setLookupCode(e.target.value)}
-                      placeholder="VD: KH-1101-123"
+                      placeholder="VD: KH-1107-7K3QXM"
                       className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-semibold"
                       required
                     />
@@ -1180,9 +1195,11 @@ export const PublicCustomerBookingPortal: React.FC = () => {
                     />
                   </div>
                 </div>
+                <HumanCheck onToken={setHumanToken} resetSignal={humanReset} />
                 <button
                   type="submit"
-                  className="w-full py-2.5 rounded-xl bg-slate-900 text-white font-bold"
+                  disabled={HUMAN_CHECK_ENABLED && !humanToken}
+                  className="w-full py-2.5 rounded-xl bg-slate-900 disabled:bg-slate-400 text-white font-bold"
                 >
                   Tra cứu
                 </button>

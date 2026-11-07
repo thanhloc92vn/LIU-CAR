@@ -7,6 +7,8 @@ import { rateLimited } from './_shared.js';
 
 const BASE = 'https://maps.vietmap.vn/api';
 const hits = new Map();
+// Cache ở CDN của Vercel: cùng một chữ gõ / cùng một tuyến thì không gọi lại Vietmap (đỡ tốn hạn mức khi bị spam)
+const CDN_CACHE = 's-maxage=86400, stale-while-revalidate=604800';
 
 async function vietmap(path, params) {
   const qs = new URLSearchParams({ apikey: process.env.VIETMAP_API_KEY });
@@ -46,6 +48,7 @@ export default async function handler(req, res) {
       const input = String(req.query?.input || '').trim().slice(0, 120);
       if (input.length < 2) return res.status(200).json({ predictions: [] });
       const d = await vietmap('autocomplete/v4', { text: input });
+      res.setHeader('Cache-Control', CDN_CACHE);
       return res.status(200).json({
         predictions: (Array.isArray(d) ? d : []).slice(0, 6).map((p) => ({ description: p.display, placeId: p.ref_id })),
       });
@@ -72,6 +75,8 @@ export default async function handler(req, res) {
       const coords = path.points?.coordinates || [];
       const step = Math.max(1, Math.ceil(coords.length / 400));
       const line = coords.filter((_, i) => i % step === 0 || i === coords.length - 1);
+      // Tuyến giữa hai địa điểm có sẵn thì cache được; tuyến từ vị trí GPS của khách thì không
+      if (!from.startsWith('geo:')) res.setHeader('Cache-Control', CDN_CACHE);
       return res.status(200).json({
         km: Math.round(path.distance / 100) / 10,
         minutes: Math.round(path.time / 60000),

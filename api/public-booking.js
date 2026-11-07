@@ -2,10 +2,26 @@
 // nối chuyến vào DB bằng RPC append_trip (không ghi đè dữ liệu khác) rồi báo nhóm điều hành Telegram.
 // Biến môi trường: SUPABASE_SERVICE_KEY, TELEGRAM_BOT_TOKEN, TELEGRAM_DISPATCH_CHAT_ID (Telegram không bắt buộc).
 import { randomInt } from 'node:crypto';
-import { hasServiceKey, loadState, rateLimited, rpc, sendMessage, sendPickupLocation } from './_shared.js';
+import {
+  clientIp,
+  hasServiceKey,
+  limited,
+  loadState,
+  rpc,
+  sendMessage,
+  sendPickupLocation,
+  verifyHuman,
+} from './_shared.js';
 import { buildMessage } from './telegram-notify-trip.js';
 
-const hits = new Map();
+// Chống spam: mỗi IP 5 lần/10 phút, mỗi SĐT 3 lần/ngày, cả hệ thống tối đa 30 lịch online/giờ
+const IP_MAX = 5;
+const IP_WINDOW_SEC = 10 * 60;
+const PHONE_MAX = 3;
+const PHONE_WINDOW_SEC = 24 * 60 * 60;
+const GLOBAL_MAX_PER_HOUR = 30;
+const ONLINE_NOTE = '[Khách đặt trực tuyến';
+const BUSY = 'Hệ thống đang nhận quá nhiều lịch, vui lòng gọi hotline để được hỗ trợ ngay.';
 // Mã tra cứu khó đoán (khách tra cứu bằng mã + SĐT); bỏ ký tự dễ nhầm O/0, I/1/L
 const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const randomCode = (n) => Array.from({ length: n }, () => CODE_CHARS[randomInt(CODE_CHARS.length)]).join('');
@@ -24,7 +40,7 @@ const pickupCoords = (lat, lng) => {
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   if (!hasServiceKey()) return res.status(503).json({ error: 'not_configured' });
-  if (rateLimited(hits, req, 5, 10 * 60 * 1000)) {
+  if (await limited(`booking:ip:${clientIp(req)}`, IP_MAX, IP_WINDOW_SEC)) {
     return res.status(429).json({ error: 'Bạn đặt quá nhiều lần. Vui lòng thử lại sau ít phút hoặc gọi hotline.' });
   }
 
@@ -43,11 +59,38 @@ export default async function handler(req, res) {
   if (!customerName || !/^[0-9+ .-]{8,20}$/.test(customerPhone) || !/^\d{4}-\d{2}-\d{2}$/.test(tripDate)) {
     return res.status(400).json({ error: 'Vui lòng nhập đúng họ tên, số điện thoại và ngày đi.' });
   }
+  if (!(await verifyHuman(req, b.turnstileToken))) {
+    return res.status(403).json({ error: 'Chưa xác minh được bạn là người thật. Vui lòng tải lại trang rồi thử lại.' });
+  }
+  const phoneDigits = customerPhone.replace(/\D/g, '');
+  if (await limited(`booking:phone:${phoneDigits}`, PHONE_MAX, PHONE_WINDOW_SEC)) {
+    return res.status(429).json({ error: 'Số điện thoại này đã đặt nhiều lần hôm nay, vui lòng gọi hotline.' });
+  }
 
   try {
     const state = await loadState();
     const vehicle = state?.vehicles?.find((v) => v.id === b.vehicleId);
     if (!vehicle) return res.status(400).json({ error: 'Xe không còn trên hệ thống, vui lòng chọn xe khác.' });
+
+    const trips = state.trips || [];
+    // Cùng SĐT, cùng ngày đã có lịch chờ xác nhận thì không nhận thêm (không trả mã chuyến cũ để tránh lộ)
+    const duplicate = trips.some(
+      (t) =>
+        t.status === 'PENDING_CONFIRM' &&
+        t.tripDate === tripDate &&
+        String(t.customerPhone || '').replace(/\D/g, '') === phoneDigits
+    );
+    if (duplicate) {
+      return res.status(409).json({
+        error: 'Bạn đã có lịch đang chờ xác nhận cho ngày này. Vui lòng chờ chúng tôi gọi lại hoặc gọi hotline.',
+      });
+    }
+    // Trần tổng: chặn tràn lịch giả khi bị spam từ nhiều IP
+    const hourAgo = Date.now() - 60 * 60 * 1000;
+    const recentOnline = trips.filter(
+      (t) => String(t.notes || '').startsWith(ONLINE_NOTE) && Date.parse(t.createdAt) > hourAgo
+    ).length;
+    if (recentOnline >= GLOBAL_MAX_PER_HOUR) return res.status(429).json({ error: BUSY });
 
     const now = Date.now();
     const trip = {

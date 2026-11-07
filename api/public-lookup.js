@@ -1,15 +1,16 @@
 // Khách tra cứu lịch đã đặt: phải nhập đúng cả mã chuyến lẫn số điện thoại đặt xe.
 // Chỉ trả các thông tin khách cần xem, không trả CCCD/GPLX hay chi phí.
-import { hasServiceKey, loadState, rateLimited } from './_shared.js';
-
-const hits = new Map();
+import { clientIp, hasServiceKey, limited, loadState, verifyHuman } from './_shared.js';
 const digits = (s) => String(s || '').replace(/\D/g, '');
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
   if (!hasServiceKey()) return res.status(503).json({ error: 'not_configured' });
-  if (rateLimited(hits, req, 20, 10 * 60 * 1000)) {
+  if (await limited(`lookup:ip:${clientIp(req)}`, 20, 10 * 60)) {
     return res.status(429).json({ error: 'Tra cứu quá nhiều lần. Vui lòng thử lại sau ít phút.' });
+  }
+  if (!(await verifyHuman(req, req.query?.t))) {
+    return res.status(403).json({ error: 'Chưa xác minh được bạn là người thật. Vui lòng tải lại trang rồi thử lại.' });
   }
 
   const code = String(req.query?.code || '').trim().replace(/^#/, '').toUpperCase();
