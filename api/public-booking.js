@@ -5,6 +5,8 @@ import { hasServiceKey, loadState, rateLimited, rpc, sendMessage, sendPickupLoca
 import { buildMessage } from './telegram-notify-trip.js';
 
 const hits = new Map();
+// Phí giao xe tự lái tận nơi; trang khách hiển thị cùng con số (DELIVERY_FEE trong PublicCustomerBookingPortal)
+const DELIVERY_FEE = 100000;
 
 const str = (v, max = 300) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
 const num = (v) => (Number.isFinite(Number(v)) && Number(v) >= 0 ? Math.round(Number(v)) : 0);
@@ -29,6 +31,10 @@ export default async function handler(req, res) {
   const bookingType = b.bookingType === 'SELF_DRIVE' ? 'SELF_DRIVE' : 'WITH_DRIVER';
   const routeType = ['HIGHWAY', 'NATIONAL_ROAD', 'MIXED'].includes(b.routeType) ? b.routeType : 'HIGHWAY';
   const time = (v, d) => (/^\d{2}:\d{2}$/.test(v || '') ? v : d);
+  const date = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(v || '') ? v : undefined);
+  const selfDrive = bookingType === 'SELF_DRIVE';
+  const delivery = selfDrive && b.deliveryMode === 'DELIVERY';
+  const tripEndDate = selfDrive && date(b.tripEndDate) >= tripDate ? date(b.tripEndDate) : undefined;
 
   if (!customerName || !/^[0-9+ .-]{8,20}$/.test(customerPhone) || !/^\d{4}-\d{2}-\d{2}$/.test(tripDate)) {
     return res.status(400).json({ error: 'Vui lòng nhập đúng họ tên, số điện thoại và ngày đi.' });
@@ -53,11 +59,19 @@ export default async function handler(req, res) {
       customerPhone,
       customerCccd: str(b.customerCccd, 20) || undefined,
       customerLicense: str(b.customerLicense, 20) || undefined,
+      ...(selfDrive && {
+        customerBirthDate: date(b.customerBirthDate),
+        customerAddress: str(b.customerAddress, 200) || undefined,
+        customerCccdIssueDate: date(b.customerCccdIssueDate),
+        customerCccdIssuePlace: str(b.customerCccdIssuePlace, 100) || undefined,
+        deliveryMode: delivery ? 'DELIVERY' : 'SELF_PICKUP',
+      }),
       tripDate,
+      tripEndDate,
       departureTime: time(b.departureTime, '07:30'),
       returnTime: time(b.returnTime, '19:30'),
-      pickupLocation: str(b.pickupLocation) || 'TP.HCM',
-      ...pickupCoords(b.pickupLat, b.pickupLng),
+      pickupLocation: selfDrive && !delivery ? 'Khách tự đến lấy xe' : str(b.pickupLocation) || 'TP.HCM',
+      ...(!(selfDrive && !delivery) && pickupCoords(b.pickupLat, b.pickupLng)),
       dropoffLocation: str(b.dropoffLocation) || 'Theo lộ trình',
       routeType,
       routeDetail: str(b.routeDetail) || 'Theo lộ trình khách chọn',
@@ -65,7 +79,7 @@ export default async function handler(req, res) {
       isRoundTrip: b.isRoundTrip !== false,
       // Giá tạm tính từ trang khách; điều hành kiểm tra lại trước khi xác nhận
       baseFareRevenue: num(b.baseFareRevenue),
-      surchargeRevenue: 0,
+      surchargeRevenue: delivery ? DELIVERY_FEE : 0,
       paymentCollectedBy: 'COMPANY_BANK',
       autoHighwayToll: num(b.autoHighwayToll),
       autoFuelQuota: num(b.autoFuelQuota),

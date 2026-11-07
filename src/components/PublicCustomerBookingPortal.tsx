@@ -1,6 +1,7 @@
 import { PROVINCES } from '../data/provinces';
 import { PlaceInput } from './PlaceInput';
 import { todayLocal } from '../utils/date';
+import { RentalContract } from './RentalContract';
 import { resolveSiteContent } from '../data/siteContent';
 import React, { lazy, Suspense, useEffect, useState } from 'react';
 import {
@@ -37,6 +38,9 @@ import { TravelInfoSections } from './TravelInfoSections';
 const CarShowcase3D = lazy(() => import('./CarShowcase3D'));
 // Thư viện bản đồ cũng nặng: chỉ tải khi khách đã chọn đủ điểm đón và điểm đến
 const RouteMap = lazy(() => import('./RouteMap'));
+
+// Phí giao xe tự lái tận nơi; máy chủ đặt cùng con số (DELIVERY_FEE trong api/public-booking.js)
+const DELIVERY_FEE = 100000;
 // Kết quả tra cứu do máy chủ trả (chỉ phần khách cần xem)
 interface LookupTrip {
   tripCode: string;
@@ -88,6 +92,14 @@ export const PublicCustomerBookingPortal: React.FC = () => {
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerCccd, setCustomerCccd] = useState('');
   const [customerLicense, setCustomerLicense] = useState('');
+  // Riêng thuê tự lái: thông tin điền hợp đồng, ngày trả xe, cách nhận xe
+  const [customerBirthDate, setCustomerBirthDate] = useState('');
+  const [customerAddress, setCustomerAddress] = useState('');
+  const [customerCccdIssueDate, setCustomerCccdIssueDate] = useState('');
+  const [customerCccdIssuePlace, setCustomerCccdIssuePlace] = useState('');
+  const [tripEndDate, setTripEndDate] = useState(todayLocal);
+  const [deliveryMode, setDeliveryMode] = useState<'SELF_PICKUP' | 'DELIVERY'>('SELF_PICKUP');
+  const [showContract, setShowContract] = useState(false);
   const [tripDate, setTripDate] = useState(todayLocal);
   const [departureTime, setDepartureTime] = useState('07:30');
   const [returnTime, setReturnTime] = useState('19:30');
@@ -203,14 +215,27 @@ export const PublicCustomerBookingPortal: React.FC = () => {
     );
   };
 
+  // Số ngày thuê tự lái tính theo ngày lịch, gồm cả ngày nhận và ngày trả
+  const rentalDays = Math.max(
+    1,
+    Math.round((Date.parse(tripEndDate || tripDate) - Date.parse(tripDate)) / 86400000) + 1
+  );
+  const deliveryFee = deliveryMode === 'DELIVERY' ? DELIVERY_FEE : 0;
+
   const handleOpenBookVehicle = (veh: Vehicle) => {
     setSelectedVehicle(veh);
     setCreatedBooking(null);
+    setShowContract(false);
   };
 
   const handleCustomerSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedVehicle || !tenant) return;
+    // Thuê tự lái: cho khách xem hợp đồng điền sẵn trước, xác nhận ở màn hợp đồng mới gửi lịch
+    if (serviceType === 'SELF_DRIVE' && !showContract) {
+      setShowContract(true);
+      return;
+    }
 
     const preset =
       highwayPresets.find((p) => p.id === selectedPresetId) || highwayPresets[0];
@@ -220,7 +245,7 @@ export const PublicCustomerBookingPortal: React.FC = () => {
     // Estimate base fare based on vehicle rate & distance
     const estimatedFare =
       serviceType === 'SELF_DRIVE'
-        ? selectedVehicle.dailyRateSelfDrive * (isRoundTrip ? 2 : 1)
+        ? selectedVehicle.dailyRateSelfDrive * rentalDays
         : Math.round(
             selectedVehicle.dailyRateSelfDrive +
               distanceKm * (selectedVehicle.fuelCostPerKm + 4500)
@@ -252,6 +277,12 @@ export const PublicCustomerBookingPortal: React.FC = () => {
       customerPhone: customerPhone.trim(),
       customerCccd: customerCccd.trim() || undefined,
       customerLicense: customerLicense.trim() || undefined,
+      customerBirthDate: customerBirthDate || undefined,
+      customerAddress: customerAddress.trim() || undefined,
+      customerCccdIssueDate: customerCccdIssueDate || undefined,
+      customerCccdIssuePlace: customerCccdIssuePlace.trim() || undefined,
+      deliveryMode,
+      tripEndDate: serviceType === 'SELF_DRIVE' ? tripEndDate : undefined,
       tripDate,
       departureTime,
       returnTime,
@@ -286,6 +317,7 @@ export const PublicCustomerBookingPortal: React.FC = () => {
         return;
       }
       setCreatedBooking(data.trip);
+      setShowContract(false);
     } catch {
       setSubmitError('Không kết nối được máy chủ, vui lòng thử lại hoặc gọi hotline.');
       return;
@@ -613,7 +645,7 @@ export const PublicCustomerBookingPortal: React.FC = () => {
       {/* Modal Đặt Lịch Xe Dành Cho Khách Hàng */}
       {selectedVehicle && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-md p-3 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-xl max-h-[92vh] flex flex-col overflow-hidden">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden">
             <div className="bg-white text-slate-900 border-b border-slate-200 px-5 py-4 flex items-center justify-between">
               <div>
                 <h3 className="text-base font-bold">
@@ -717,6 +749,8 @@ export const PublicCustomerBookingPortal: React.FC = () => {
                 onSubmit={handleCustomerSubmit}
                 className="p-5 overflow-y-auto space-y-4 text-xs"
               >
+                {/* Đang xem hợp đồng thì ẩn các ô nhập (vẫn giữ trong form để giữ giá trị) */}
+                <div className={showContract ? 'hidden' : 'space-y-4'}>
                 <div className="grid grid-cols-2 gap-2 bg-slate-100 p-1 rounded-xl">
                   <button
                     type="button"
@@ -799,12 +833,85 @@ export const PublicCustomerBookingPortal: React.FC = () => {
                         required
                       />
                     </div>
+                    <div>
+                      <label className="block font-bold text-emerald-900 mb-1">Ngày sinh *</label>
+                      <input
+                        type="date"
+                        value={customerBirthDate}
+                        onChange={(e) => setCustomerBirthDate(e.target.value)}
+                        max={todayLocal()}
+                        className="w-full rounded-lg border border-emerald-300 bg-white px-2.5 py-1.5"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-bold text-emerald-900 mb-1">CCCD cấp ngày *</label>
+                      <input
+                        type="date"
+                        value={customerCccdIssueDate}
+                        onChange={(e) => setCustomerCccdIssueDate(e.target.value)}
+                        max={todayLocal()}
+                        className="w-full rounded-lg border border-emerald-300 bg-white px-2.5 py-1.5"
+                        required
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="block font-bold text-emerald-900 mb-1">Nơi cấp CCCD *</label>
+                      <input
+                        type="text"
+                        value={customerCccdIssuePlace}
+                        onChange={(e) => setCustomerCccdIssuePlace(e.target.value)}
+                        placeholder="Cục Cảnh sát QLHC về TTXH"
+                        className="w-full rounded-lg border border-emerald-300 bg-white px-2.5 py-1.5"
+                        required
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="block font-bold text-emerald-900 mb-1">Địa chỉ thường trú *</label>
+                      <input
+                        type="text"
+                        value={customerAddress}
+                        onChange={(e) => setCustomerAddress(e.target.value)}
+                        placeholder="Số nhà, đường, phường/xã, tỉnh/thành"
+                        className="w-full rounded-lg border border-emerald-300 bg-white px-2.5 py-1.5"
+                        required
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="block font-bold text-emerald-900 mb-1">Nhận xe *</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setDeliveryMode('SELF_PICKUP')}
+                          className={`py-2 rounded-lg font-bold border transition ${
+                            deliveryMode === 'SELF_PICKUP'
+                              ? 'bg-emerald-600 text-white border-emerald-600'
+                              : 'bg-white text-slate-700 border-emerald-300'
+                          }`}
+                        >
+                          Tự đến lấy xe
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeliveryMode('DELIVERY')}
+                          className={`py-2 rounded-lg font-bold border transition ${
+                            deliveryMode === 'DELIVERY'
+                              ? 'bg-emerald-600 text-white border-emerald-600'
+                              : 'bg-white text-slate-700 border-emerald-300'
+                          }`}
+                        >
+                          Giao tận nơi (+{formatVND(DELIVERY_FEE)})
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 )}
 
-                <div className="grid grid-cols-3 gap-2.5">
+                <div className={`grid gap-2.5 ${serviceType === 'SELF_DRIVE' ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-3'}`}>
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1">Ngày khởi hành *</label>
+                    <label className="block font-bold text-slate-700 mb-1">
+                      {serviceType === 'SELF_DRIVE' ? 'Ngày nhận xe *' : 'Ngày khởi hành *'}
+                    </label>
                     <input
                       type="date"
                       value={tripDate}
@@ -815,7 +922,9 @@ export const PublicCustomerBookingPortal: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1">Giờ đón</label>
+                    <label className="block font-bold text-slate-700 mb-1">
+                      {serviceType === 'SELF_DRIVE' ? 'Giờ nhận' : 'Giờ đón'}
+                    </label>
                     <input
                       type="time"
                       value={departureTime}
@@ -823,8 +932,23 @@ export const PublicCustomerBookingPortal: React.FC = () => {
                       className="w-full rounded-xl border border-slate-300 px-2.5 py-2"
                     />
                   </div>
+                  {serviceType === 'SELF_DRIVE' && (
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1">Ngày trả xe *</label>
+                      <input
+                        type="date"
+                        value={tripEndDate}
+                        min={tripDate}
+                        onChange={(e) => setTripEndDate(e.target.value)}
+                        className="w-full rounded-xl border border-slate-300 px-2.5 py-2"
+                        required
+                      />
+                    </div>
+                  )}
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1">Giờ về dự kiến</label>
+                    <label className="block font-bold text-slate-700 mb-1">
+                      {serviceType === 'SELF_DRIVE' ? 'Giờ trả' : 'Giờ về dự kiến'}
+                    </label>
                     <input
                       type="time"
                       value={returnTime}
@@ -835,17 +959,21 @@ export const PublicCustomerBookingPortal: React.FC = () => {
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block font-bold text-slate-700 mb-1">Điểm đón khách *</label>
-                    <PlaceInput
-                      value={pickupLocation}
-                      onChange={setPickupLocation}
-                      onPick={setPickupPlaceId}
-                      fallbackList="province-options"
-                      placeholder="Chọn tỉnh/thành hoặc gõ địa chỉ đón..."
-                      required
-                    />
-                  </div>
+                  {(serviceType !== 'SELF_DRIVE' || deliveryMode === 'DELIVERY') && (
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1">
+                        {serviceType === 'SELF_DRIVE' ? 'Địa chỉ giao xe *' : 'Điểm đón khách *'}
+                      </label>
+                      <PlaceInput
+                        value={pickupLocation}
+                        onChange={setPickupLocation}
+                        onPick={setPickupPlaceId}
+                        fallbackList="province-options"
+                        placeholder="Chọn tỉnh/thành hoặc gõ địa chỉ đón..."
+                        required
+                      />
+                    </div>
+                  )}
                   <div>
                     <label className="block font-bold text-slate-700 mb-1">Điểm đến *</label>
                     <PlaceInput
@@ -935,6 +1063,33 @@ export const PublicCustomerBookingPortal: React.FC = () => {
                     className="w-full rounded-xl border border-slate-300 px-3 py-2"
                   />
                 </div>
+                </div>
+
+                {showContract && (
+                  <RentalContract
+                    tenant={tenant}
+                    vehicle={selectedVehicle}
+                    data={{
+                      customerName,
+                      customerPhone,
+                      customerBirthDate,
+                      customerCccd,
+                      customerCccdIssueDate,
+                      customerCccdIssuePlace,
+                      customerLicense,
+                      customerAddress,
+                      tripDate,
+                      departureTime,
+                      tripEndDate,
+                      returnTime,
+                      rentalDays,
+                      deliveryMode,
+                      deliveryAddress: pickupLocation,
+                      deliveryFee,
+                      destination: dropoffLocation,
+                    }}
+                  />
+                )}
 
                 {submitError && (
                   <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 font-semibold">
@@ -942,20 +1097,41 @@ export const PublicCustomerBookingPortal: React.FC = () => {
                   </div>
                 )}
 
-                <div className="flex justify-end gap-2 pt-2">
+                <div className="flex items-center justify-end gap-2 pt-2">
+                  {serviceType === 'SELF_DRIVE' && (
+                    <div className="mr-auto">
+                      <p className="text-[11px] text-slate-500">Tạm tính</p>
+                      <p className="text-xl font-extrabold text-emerald-700 leading-tight">
+                        {formatVND(selectedVehicle.dailyRateSelfDrive * rentalDays + deliveryFee)}
+                      </p>
+                      <p className="text-[11px] text-slate-500">
+                        {rentalDays} ngày × {formatVND(selectedVehicle.dailyRateSelfDrive)}
+                        {deliveryFee > 0 && <> + giao xe {formatVND(deliveryFee)}</>}
+                      </p>
+                      {selectedVehicle.fuelType === 'ELECTRIC' && (
+                        <p className="text-[11px] font-semibold text-amber-700">
+                          Lưu ý: Tiền điện tính theo km thực tế
+                        </p>
+                      )}
+                    </div>
+                  )}
                   <button
                     type="button"
-                    onClick={() => setSelectedVehicle(null)}
-                    className="px-4 py-2.5 rounded-xl border border-slate-300 font-semibold text-slate-600"
+                    onClick={() => (showContract ? setShowContract(false) : setSelectedVehicle(null))}
+                    className="px-4 py-2.5 rounded-xl border border-slate-300 font-semibold text-slate-600 whitespace-nowrap"
                   >
-                    Hủy
+                    {showContract ? 'Quay lại sửa' : 'Hủy'}
                   </button>
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold transition"
+                    className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold transition whitespace-nowrap"
                   >
-                    {submitting ? 'Đang gửi...' : 'Xác Nhận Đặt Lịch Xe'}
+                    {submitting
+                      ? 'Đang gửi...'
+                      : serviceType === 'SELF_DRIVE' && !showContract
+                        ? 'Xem hợp đồng'
+                        : 'Xác Nhận Đặt Lịch Xe'}
                   </button>
                 </div>
               </form>

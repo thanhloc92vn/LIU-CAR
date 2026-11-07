@@ -105,6 +105,9 @@ export function buildTripLines(trip, vehicle) {
   const selfDrive = trip.bookingType === 'SELF_DRIVE';
   return [
     `Hình thức: ${selfDrive ? 'Thuê tự lái' : 'Có tài xế'}`,
+    ...(selfDrive && trip.deliveryMode
+      ? [`Nhận xe: ${trip.deliveryMode === 'DELIVERY' ? `Giao tận nơi (${trip.pickupLocation})` : 'Khách tự đến lấy xe'}`]
+      : []),
     `Xe: ${vehicle ? `${vehicle.brand} ${vehicle.model} (${vehicle.plateNumber}), ${vehicle.seatCategory}` : 'chưa chọn xe'}`,
     `Lộ trình: ${trip.pickupLocation} → ${trip.dropoffLocation}`,
     ...(typeof trip.pickupLat === 'number' && typeof trip.pickupLng === 'number'

@@ -188,6 +188,12 @@ export interface Trip {
   customerPhone: string;
   customerCccd?: string;     // Dùng khi thuê tự lái
   customerLicense?: string;  // GPLX khách tự lái
+  // Thông tin thêm của khách tự lái, dùng điền hợp đồng thuê xe
+  customerBirthDate?: string;     // YYYY-MM-DD
+  customerAddress?: string;       // Địa chỉ thường trú
+  customerCccdIssueDate?: string; // YYYY-MM-DD
+  customerCccdIssuePlace?: string;
+  deliveryMode?: 'SELF_PICKUP' | 'DELIVERY'; // Tự lái: khách tự đến lấy hay giao xe tận nơi
   tripDate: string;          // YYYY-MM-DD
   tripEndDate?: string;      // Ngày về (chuyến nhiều ngày, có ở qua đêm)
   journeyRouteId?: string;   // Hành trình mẫu đã áp dụng
