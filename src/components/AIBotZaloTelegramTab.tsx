@@ -26,6 +26,7 @@ import {
   parseNaturalBookingCommand,
 } from '../utils/aiBotEngine';
 import { calculateTripFinancials, formatVND } from '../utils/calculations';
+import { authHeaders } from '../services/supabaseClient';
 import { useConfirm } from './ConfirmDialog';
 
 interface AIBotZaloTelegramTabProps {
@@ -156,7 +157,7 @@ export const AIBotZaloTelegramTab: React.FC<AIBotZaloTelegramTabProps> = ({
       try {
         await fetch('/api/telegram-notify', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
           body: JSON.stringify({
             botToken,
             chatId: groupChatId,

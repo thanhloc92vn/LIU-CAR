@@ -2,18 +2,8 @@ import { FleetDatabase } from '../types/fleet';
 
 export const initialFleetDatabase: FleetDatabase = {
   activeTenantId: 'TENANT-MAIN',
-  adminAccounts: [
-    {
-      id: 'ADM-01',
-      username: 'admin',
-      email: 'admin@liucar.vn',
-      fullName: 'Chủ Hệ Thống (Super Admin)',
-      passwordHash: 'LiuCar@2026',
-      role: 'SUPER_ADMIN',
-      status: 'APPROVED',
-      createdAt: '2026-01-01',
-    },
-  ],
+  // Đăng nhập dùng Supabase Auth; không còn tài khoản mẫu nằm trong code
+  adminAccounts: [],
   tenants: [
     {
       id: 'TENANT-MAIN',

@@ -1,7 +1,15 @@
 // Điều hành điều phối tài xế cho một chuyến: nhắn riêng tài xế (nếu đã liên kết Telegram) và báo nhóm.
 // Chỉ nhận mã chuyến. Máy chủ chỉ gửi khi chuyến đã được đánh dấu điều phối (dispatchedAt) trong dữ liệu đã lưu.
 // Biến môi trường: TELEGRAM_BOT_TOKEN, TELEGRAM_DISPATCH_CHAT_ID.
-import { buildTripLines, getLinkByDriver, loadState, sendMessage, sendPickupLocation } from './_shared.js';
+import {
+  ADMIN_ROLES,
+  buildTripLines,
+  getLinkByDriver,
+  loadState,
+  sendMessage,
+  sendPickupLocation,
+  staffCaller,
+} from './_shared.js';
 
 const recent = new Map();
 
@@ -11,6 +19,8 @@ export default async function handler(req, res) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const groupId = process.env.TELEGRAM_DISPATCH_CHAT_ID;
   if (!token || !groupId) return res.status(503).json({ error: 'not_configured' });
+  // Chỉ nhân sự quản trị đang đăng nhập được điều phối và nhắn tài xế
+  if (!(await staffCaller(req, ADMIN_ROLES))) return res.status(401).json({ error: 'unauthorized' });
 
   const tripId = typeof req.body?.tripId === 'string' ? req.body.tripId : '';
   if (!tripId) return res.status(400).json({ error: 'missing_trip_id' });

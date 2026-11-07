@@ -83,6 +83,12 @@ async function accessToken(): Promise<string | null> {
 
 export const isSignedIn = () => !!auth;
 
+// Header đăng nhập để gọi các API máy chủ chỉ dành cho nhân sự (api/telegram-*.js)
+export async function authHeaders(): Promise<Record<string, string>> {
+  const token = await accessToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 // Gọi REST/RPC bằng token của người đang đăng nhập (RLS quyết định được thấy gì)
 async function api(path: string, init: RequestInit = {}): Promise<Response> {
   const token = await accessToken();

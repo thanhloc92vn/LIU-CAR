@@ -2,7 +2,7 @@
 // xem telegram-dispatch-driver.js). Nội dung tin được dựng ở máy chủ từ dữ liệu đã lưu, không nhận chữ từ trình duyệt.
 // Biến môi trường: TELEGRAM_BOT_TOKEN, TELEGRAM_DISPATCH_CHAT_ID.
 
-import { buildTripLines, loadState, sendMessage, sendPickupLocation } from './_shared.js';
+import { ADMIN_ROLES, buildTripLines, loadState, sendMessage, sendPickupLocation, staffCaller } from './_shared.js';
 
 // Chống bấm lặp: cùng một chuyến không gửi lại trong 30 giây (theo từng máy chủ đang chạy)
 const recent = new Map();
@@ -27,6 +27,8 @@ export default async function handler(req, res) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_DISPATCH_CHAT_ID;
   if (!token || !chatId) return res.status(503).json({ error: 'not_configured' });
+  // Chỉ nhân sự quản trị đang đăng nhập được kích hoạt bot (tin có tên, SĐT khách)
+  if (!(await staffCaller(req, ADMIN_ROLES))) return res.status(401).json({ error: 'unauthorized' });
 
   const tripId = typeof req.body?.tripId === 'string' ? req.body.tripId : '';
   if (!tripId) return res.status(400).json({ error: 'missing_trip_id' });

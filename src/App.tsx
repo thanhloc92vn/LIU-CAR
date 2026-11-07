@@ -33,6 +33,7 @@ import {
 } from './types/fleet';
 import { initialFleetDatabase } from './services/seedData';
 import {
+  authHeaders,
   driverTripAction,
   isSignedIn,
   loadAdminState,
@@ -474,7 +475,7 @@ export function App() {
       try {
         const res = await fetch('/api/telegram-notify-trip', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
           body: JSON.stringify({ tripId }),
         });
         // Bản chạy trên máy trả trang HTML cho đường dẫn lạ nên phải đọc JSON để biết gửi thật hay không
@@ -485,6 +486,8 @@ export function App() {
           setTimeout(() => attempt(false), 4000);
         } else if (res.status === 503) {
           warn('Bot Telegram chưa được cấu hình trên máy chủ (thiếu biến môi trường trên Vercel)');
+        } else if (res.status === 401) {
+          warn('Phiên đăng nhập đã hết hạn nên chưa báo được Telegram. Đăng nhập lại rồi bấm "Gửi Telegram".');
         } else {
           warn(`Chưa báo được chuyến #${tripCode} vào Telegram. Bấm "Gửi Telegram" trên thẻ chuyến để gửi lại.`);
         }
@@ -502,7 +505,7 @@ export function App() {
       try {
         const res = await fetch('/api/telegram-dispatch-driver', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
           body: JSON.stringify({ tripId }),
         });
         const data = await res.json().catch(() => null);

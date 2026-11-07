@@ -1,10 +1,14 @@
 // Khách đặt lịch trên trang công khai. Máy chủ chỉ nhận các trường khách được điền, tự đặt mã/trạng thái,
 // nối chuyến vào DB bằng RPC append_trip (không ghi đè dữ liệu khác) rồi báo nhóm điều hành Telegram.
 // Biến môi trường: SUPABASE_SERVICE_KEY, TELEGRAM_BOT_TOKEN, TELEGRAM_DISPATCH_CHAT_ID (Telegram không bắt buộc).
+import { randomInt } from 'node:crypto';
 import { hasServiceKey, loadState, rateLimited, rpc, sendMessage, sendPickupLocation } from './_shared.js';
 import { buildMessage } from './telegram-notify-trip.js';
 
 const hits = new Map();
+// Mã tra cứu khó đoán (khách tra cứu bằng mã + SĐT); bỏ ký tự dễ nhầm O/0, I/1/L
+const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+const randomCode = (n) => Array.from({ length: n }, () => CODE_CHARS[randomInt(CODE_CHARS.length)]).join('');
 // Phí giao xe tự lái tận nơi; trang khách hiển thị cùng con số (DELIVERY_FEE trong PublicCustomerBookingPortal)
 const DELIVERY_FEE = 100000;
 
@@ -49,7 +53,7 @@ export default async function handler(req, res) {
     const trip = {
       id: `TRIP-${now}`,
       tenantId: vehicle.tenantId,
-      tripCode: `KH-${tripDate.slice(5, 7)}${tripDate.slice(8, 10)}-${Math.floor(100 + Math.random() * 900)}`,
+      tripCode: `KH-${tripDate.slice(5, 7)}${tripDate.slice(8, 10)}-${randomCode(6)}`,
       bookingType,
       vehicleId: vehicle.id,
       // Khách đặt xong chưa có tài xế: điều hành sẽ chọn và điều phối trên hệ thống

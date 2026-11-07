@@ -9,6 +9,25 @@ const key = () => process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_
 
 export const headers = (extra = {}) => ({ apikey: key(), Authorization: `Bearer ${key()}`, ...extra });
 
+export const ADMIN_ROLES = ['SUPER_ADMIN', 'DISPATCHER', 'ACCOUNTANT'];
+
+// Người gọi là nhân sự nào (theo token đăng nhập Supabase gửi trong header Authorization).
+// Trả hàng staff nếu tài khoản đang hoạt động và có một trong các quyền `roles`, ngược lại null.
+export async function staffCaller(req, roles) {
+  const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  if (!token || !hasServiceKey()) return null;
+  const res = await fetch(`${supabaseUrl()}/auth/v1/user`, {
+    headers: { apikey: process.env.SUPABASE_ANON_KEY || DEFAULT_SUPABASE_KEY, Authorization: `Bearer ${token}` },
+  });
+  const user = res.ok ? await res.json() : null;
+  if (!user?.id) return null;
+  const r = await fetch(`${supabaseUrl()}/rest/v1/staff?user_id=eq.${encodeURIComponent(user.id)}&select=*`, {
+    headers: headers(),
+  });
+  const me = r.ok ? (await r.json())?.[0] : null;
+  return me?.active && roles.includes(me.role) ? me : null;
+}
+
 export async function loadState() {
   const res = await fetch(`${supabaseUrl()}/rest/v1/fleet_state?id=eq.MAIN_STATE&select=payload`, {
     headers: headers(),

@@ -1,10 +1,9 @@
 // Chủ hệ thống tạo tài khoản đăng nhập (Supabase Auth) và cấp quyền ngay trong app, hoặc đặt lại mật khẩu.
 // Chỉ máy chủ có khóa dịch vụ mới tạo được user; người gọi phải gửi token đăng nhập và là SUPER_ADMIN đang hoạt động.
 // Body: { action: 'create', email, password, role, fullName, driverId } | { action: 'reset_password', userId, password }
-import { hasServiceKey, headers, supabaseUrl } from './_shared.js';
+import { hasServiceKey, headers, staffCaller, supabaseUrl } from './_shared.js';
 
 const ROLES = ['SUPER_ADMIN', 'DISPATCHER', 'ACCOUNTANT', 'DRIVER'];
-const PUBLIC_KEY = process.env.SUPABASE_ANON_KEY || 'sb_publishable_hx8j9L2F_gBIQzrPcWOZxA_yyy5qGPo';
 
 async function staffRow(userId) {
   const res = await fetch(`${supabaseUrl()}/rest/v1/staff?user_id=eq.${encodeURIComponent(userId)}&select=*`, {
@@ -13,25 +12,12 @@ async function staffRow(userId) {
   return res.ok ? (await res.json())?.[0] || null : null;
 }
 
-// Người gọi là ai (theo token đăng nhập của họ) và có phải chủ hệ thống không
-async function callerId(req) {
-  const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
-  if (!token) return null;
-  const res = await fetch(`${supabaseUrl()}/auth/v1/user`, {
-    headers: { apikey: PUBLIC_KEY, Authorization: `Bearer ${token}` },
-  });
-  const user = res.ok ? await res.json() : null;
-  if (!user?.id) return null;
-  const me = await staffRow(user.id);
-  return me?.active && me.role === 'SUPER_ADMIN' ? user.id : null;
-}
-
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   if (!hasServiceKey()) return res.status(503).json({ error: 'Máy chủ chưa có SUPABASE_SERVICE_KEY' });
 
   try {
-    const me = await callerId(req);
+    const me = (await staffCaller(req, ['SUPER_ADMIN']))?.user_id;
     if (!me) return res.status(403).json({ error: 'Chỉ chủ hệ thống được tạo tài khoản' });
 
     const b = req.body || {};
