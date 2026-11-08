@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
-import { ArrowRight, Edit3, MapPin, Plus, Trash2, X } from 'lucide-react';
+import { ArrowRight, CarTaxiFront, Edit3, MapPin, Plus, Trash2, X } from 'lucide-react';
 import {
   HighwayPreset,
   JourneyPricing,
   JourneyRoute,
   JourneyService,
   RouteType,
+  TaxiFareConfig,
 } from '../types/fleet';
+import { TaxiFareModal } from './TaxiFareModal';
 import { formatVND } from '../utils/calculations';
 import { useConfirm } from './ConfirmDialog';
 import { DEFAULT_BATTERY_RATE_PER_KM, EMPTY_PRICING, getJourneyPricing } from '../utils/journey';
@@ -18,6 +20,8 @@ interface JourneyRoutesTabProps {
   canEdit: boolean;
   onSave: (route: Omit<JourneyRoute, 'id'>, existingId?: string) => void;
   onDelete: (id: string) => void;
+  taxiFare?: TaxiFareConfig;
+  onSaveTaxiFare: (cfg: TaxiFareConfig) => void;
 }
 
 const ROUTE_TYPE_LABELS: Record<RouteType, string> = {
@@ -236,8 +240,11 @@ export const JourneyRoutesTab: React.FC<JourneyRoutesTabProps> = ({
   canEdit,
   onSave,
   onDelete,
+  taxiFare,
+  onSaveTaxiFare,
 }) => {
   const confirm = useConfirm();
+  const [showTaxiFare, setShowTaxiFare] = useState(false);
   const [form, setForm] = useState<FormState | null>(null);
   const [formDay, setFormDay] = useState<DayType>('NORMAL');
   const [editingId, setEditingId] = useState<string | undefined>();
@@ -374,17 +381,39 @@ export const JourneyRoutesTab: React.FC<JourneyRoutesTabProps> = ({
             lại bất kỳ số nào.
           </p>
         </div>
-        {canEdit && (
+        <div className="flex flex-wrap items-center gap-2">
+          {canEdit && (
+            <button
+              type="button"
+              onClick={openNew}
+              className="inline-flex items-center gap-1.5 h-9 px-4 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition"
+            >
+              <Plus className="w-4 h-4" />
+              Thêm hành trình
+            </button>
+          )}
           <button
             type="button"
-            onClick={openNew}
-            className="inline-flex items-center gap-1.5 h-9 px-4 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition"
+            onClick={() => setShowTaxiFare(true)}
+            className="inline-flex items-center gap-1.5 h-9 px-4 rounded-full bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 text-sm font-medium transition"
           >
-            <Plus className="w-4 h-4" />
-            Thêm hành trình
+            <CarTaxiFront className="w-4 h-4 text-blue-600" />
+            Giá cước taxi
           </button>
-        )}
+        </div>
       </div>
+
+      {showTaxiFare && (
+        <TaxiFareModal
+          value={taxiFare}
+          canEdit={canEdit}
+          onClose={() => setShowTaxiFare(false)}
+          onSave={(cfg) => {
+            onSaveTaxiFare(cfg);
+            setShowTaxiFare(false);
+          }}
+        />
+      )}
 
       {routes.length === 0 ? (
         <div className="bg-white rounded-2xl shadow-sm py-16 px-4 text-center text-sm text-slate-500">

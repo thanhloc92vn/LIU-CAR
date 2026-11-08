@@ -1629,6 +1629,14 @@ export function App() {
                 }));
                 showToast('Đã xóa hành trình');
               }}
+              taxiFare={activeTenant.taxiFare}
+              onSaveTaxiFare={(taxiFare) => {
+                setDb((prev) => ({
+                  ...prev,
+                  tenants: prev.tenants.map((t) => (t.id === activeTenant.id ? { ...t, taxiFare } : t)),
+                }));
+                showToast('Đã lưu giá cước taxi');
+              }}
             />
           )}
 

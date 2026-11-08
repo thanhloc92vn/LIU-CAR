@@ -53,7 +53,16 @@ export interface TenantConfig {
   telegramGroupChatId?: string;
   zaloOaName?: string;
   siteContent?: SiteContent;
+  taxiFare?: TaxiFareConfig;
   createdAt: string;
+}
+
+// Giá cước taxi (xe có tài xế) tính theo km, admin chỉnh ở tab Hành trình chuyến
+export interface TaxiFareConfig {
+  perKm4To5Seats: number;      // xe 4–5 chỗ, đ/km
+  perKm7Seats: number;         // xe 7 chỗ, đ/km
+  holidaySurchargePerKm: number; // cộng thêm mỗi km vào ngày lễ
+  holidays: { from: string; to: string }[]; // các đợt lễ, ngày YYYY-MM-DD (gồm cả 2 đầu)
 }
 
 export type FuelType = 'ELECTRIC' | 'GASOLINE' | 'DIESEL';

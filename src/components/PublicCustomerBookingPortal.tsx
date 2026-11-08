@@ -31,6 +31,7 @@ import {
   Vehicle,
 } from '../types/fleet';
 import { formatVND } from '../utils/calculations';
+import { resolveTaxiFare, taxiRatePerKm } from '../utils/taxiFare';
 import { SiteFooter } from './SiteFooter';
 import { FloatingContact } from './FloatingContact';
 import { TravelInfoSections } from './TravelInfoSections';
@@ -163,6 +164,13 @@ export const PublicCustomerBookingPortal: React.FC = () => {
     return true;
   });
 
+  const taxiFare = resolveTaxiFare(tenant?.taxiFare);
+  // Giá xe có tài xế theo cước taxi: km (đã nhân 2 nếu khứ hồi) × đơn giá loại ghế; null = chưa có giá
+  const taxiPrice = (veh: Vehicle, km: number | undefined) => {
+    const rate = taxiRatePerKm(taxiFare, veh.seatCategory, tripDate);
+    return rate && km ? Math.round((km * rate) / 1000) * 1000 : null; // làm tròn đến nghìn
+  };
+
   const plannerVehicles = vehicles.filter((v) => v.serviceMode === 'BOTH' || v.serviceMode === serviceType);
   const plannerVehicle = plannerVehicles.find((v) => v.id === plannerVehicleId) || plannerVehicles[0];
 
@@ -257,7 +265,8 @@ export const PublicCustomerBookingPortal: React.FC = () => {
     const estimatedFare =
       serviceType === 'SELF_DRIVE'
         ? selectedVehicle.dailyRateSelfDrive * rentalDays
-        : Math.round(
+        : taxiPrice(selectedVehicle, distanceKm) ??
+          Math.round(
             selectedVehicle.dailyRateSelfDrive +
               distanceKm * (selectedVehicle.fuelCostPerKm + 4500)
           );
@@ -524,6 +533,11 @@ export const PublicCustomerBookingPortal: React.FC = () => {
                               <div className="font-semibold text-slate-900">{formatVND(veh.dailyRateSelfDrive)}</div>
                               <div className="text-[11px] text-slate-500">/ngày</div>
                             </>
+                          ) : taxiPrice(veh, routeInfo.km) !== null ? (
+                            <>
+                              <div className="font-semibold text-slate-900">{formatVND(taxiPrice(veh, routeInfo.km)!)}</div>
+                              <div className="text-[11px] text-slate-500">một chiều</div>
+                            </>
                           ) : (
                             <span className="text-[11px] text-slate-500">LH Hotline</span>
                           )}
@@ -534,6 +548,14 @@ export const PublicCustomerBookingPortal: React.FC = () => {
                 </div>
 
                 {/* pr-14 trên điện thoại: chừa chỗ cho cụm nút liên hệ nổi bên phải (FloatingContact) */}
+                {serviceType === 'WITH_DRIVER' && (
+                  <p className="text-[11px] text-slate-500">
+                    Giá có tài xế tạm tính theo km một chiều ({formatVND(taxiFare.perKm4To5Seats)}/km xe 4–5 chỗ,{' '}
+                    {formatVND(taxiFare.perKm7Seats)}/km xe 7 chỗ)
+                    {taxiFare.holidaySurchargePerKm > 0 && `; ngày lễ cộng ${formatVND(taxiFare.holidaySurchargePerKm)}/km`}.
+                  </p>
+                )}
+
                 <div className="sticky bottom-2 z-10 flex items-center gap-2 pr-14 sm:pr-0">
                   {serviceType === 'WITH_DRIVER' && tenant?.hotline && (
                     <a
