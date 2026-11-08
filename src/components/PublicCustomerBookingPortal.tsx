@@ -48,9 +48,10 @@ interface LookupTrip {
   status: Trip['status'];
   tripDate: string;
   departureTime: string;
-  pickupLocation: string;
-  dropoffLocation: string;
-  vehicle: Pick<Vehicle, 'seatCategory' | 'brand' | 'model' | 'plateNumber'> | null;
+  // null khi chỉ tra bằng SĐT (máy chủ che bớt)
+  pickupLocation: string | null;
+  dropoffLocation: string | null;
+  vehicle: (Pick<Vehicle, 'seatCategory' | 'brand' | 'model'> & { plateNumber: string | null }) | null;
   driver: { fullName: string; phone: string } | null;
 }
 
@@ -160,7 +161,7 @@ export const PublicCustomerBookingPortal: React.FC = () => {
     return true;
   });
 
-  // Phải nhập đúng cả mã chuyến và số điện thoại đặt xe
+  // Chỉ cần SĐT đặt xe; nhập thêm mã chuyến để xem đủ điểm đón/trả, biển số, tài xế
   const handleLookup = async (e: React.FormEvent) => {
     e.preventDefault();
     setLookupError(null);
@@ -541,6 +542,8 @@ export const PublicCustomerBookingPortal: React.FC = () => {
                 <img
                   src={veh.images[0]}
                   alt={`${veh.brand} ${veh.model}`}
+                  loading="lazy"
+                  decoding="async"
                   className="w-full aspect-[16/9] object-cover"
                 />
               )}
@@ -1175,14 +1178,15 @@ export const PublicCustomerBookingPortal: React.FC = () => {
               <form onSubmit={handleLookup} className="space-y-3">
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1">Mã chuyến</label>
+                    <label className="block font-bold text-slate-700 mb-1">
+                      Mã chuyến <span className="font-normal text-slate-400">(không bắt buộc)</span>
+                    </label>
                     <input
                       type="text"
                       value={lookupCode}
                       onChange={(e) => setLookupCode(e.target.value)}
                       placeholder="VD: KH-1107-7K3QXM"
                       className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-semibold"
-                      required
                     />
                   </div>
                   <div>
@@ -1239,15 +1243,21 @@ export const PublicCustomerBookingPortal: React.FC = () => {
                             </span>
                           </div>
                           <div className="font-bold text-slate-900">
-                            {tr.pickupLocation} → {tr.dropoffLocation} ({tr.tripDate} lúc{' '}
-                            {tr.departureTime})
+                            {tr.pickupLocation && `${tr.pickupLocation} → ${tr.dropoffLocation} `}(
+                            {tr.tripDate} lúc {tr.departureTime})
                           </div>
                           <div>
                             • Xe phục vụ:{' '}
                             <strong>
-                              [{veh?.seatCategory}] {veh?.brand} {veh?.model} ({veh?.plateNumber})
+                              [{veh?.seatCategory}] {veh?.brand} {veh?.model}
+                              {veh?.plateNumber && ` (${veh.plateNumber})`}
                             </strong>
                           </div>
+                          {!tr.pickupLocation && (
+                            <div className="text-slate-500">
+                              Nhập thêm mã chuyến để xem điểm đón/trả, biển số xe và tài xế.
+                            </div>
+                          )}
                           {drv && (
                             <div>
                               • Tài xế phụ trách: <strong>{drv.fullName}</strong> — SĐT:{' '}

@@ -453,7 +453,8 @@ export async function uploadVehicleImage(dataUrl: string, folder = ''): Promise<
   try {
     res = await api(`/storage/v1/object/${VEHICLE_IMAGE_BUCKET}/${name}`, {
       method: 'POST',
-      headers: { 'Content-Type': blob.type || 'image/jpeg' },
+      // Tên file luôn mới (timestamp) nên cho trình duyệt/CDN cache 1 năm; thiếu header này Supabase trả no-cache
+      headers: { 'Content-Type': blob.type || 'image/jpeg', 'Cache-Control': 'max-age=31536000' },
       body: blob,
     });
   } catch (err: any) {
