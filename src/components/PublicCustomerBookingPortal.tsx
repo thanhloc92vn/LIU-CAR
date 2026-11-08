@@ -121,6 +121,8 @@ export const PublicCustomerBookingPortal: React.FC = () => {
   const [routeType, setRouteType] = useState<RouteType>('HIGHWAY');
   const [selectedPresetId, setSelectedPresetId] = useState<string>(highwayPresets[0]?.id || '');
   const [isRoundTrip, setIsRoundTrip] = useState(true);
+  // Xe khách chọn trong danh sách hiện ra sau khi có lộ trình (kiểu app gọi xe)
+  const [plannerVehicleId, setPlannerVehicleId] = useState<string | null>(null);
 
   // Khách chọn cả điểm đón lẫn điểm đến từ gợi ý địa chỉ thì hiện quãng đường ước tính
   useEffect(() => {
@@ -160,6 +162,9 @@ export const PublicCustomerBookingPortal: React.FC = () => {
     if (brandFilter !== 'ALL' && v.brand !== brandFilter) return false;
     return true;
   });
+
+  const plannerVehicles = vehicles.filter((v) => v.serviceMode === 'BOTH' || v.serviceMode === serviceType);
+  const plannerVehicle = plannerVehicles.find((v) => v.id === plannerVehicleId) || plannerVehicles[0];
 
   // Chỉ cần SĐT đặt xe; nhập thêm mã chuyến để xem đủ điểm đón/trả, biển số, tài xế
   const handleLookup = async (e: React.FormEvent) => {
@@ -460,31 +465,93 @@ export const PublicCustomerBookingPortal: React.FC = () => {
             {locateError && <p className="text-xs text-amber-700">{locateError}</p>}
             {routeInfo && (
               <>
-                <p className="text-xs text-slate-600">
-                  Quãng đường ước tính: <strong>{routeInfo.km} km</strong> · khoảng{' '}
-                  <strong>
+                <div className="relative">
+                  {routeInfo.line && routeInfo.line.length > 1 && (
+                    <Suspense fallback={<div className="h-52 w-full rounded-xl bg-slate-100 animate-pulse" />}>
+                      <RouteMap line={routeInfo.line} bbox={routeInfo.bbox} />
+                    </Suspense>
+                  )}
+                  <div
+                    className={`${
+                      routeInfo.line && routeInfo.line.length > 1 ? 'absolute left-2 top-2 shadow-sm' : ''
+                    } inline-flex items-center gap-1.5 rounded-full bg-white/95 border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-800`}
+                  >
+                    <Clock className="w-3.5 h-3.5 text-blue-600" />
                     {routeInfo.minutes >= 60
-                      ? `${Math.floor(routeInfo.minutes / 60)} giờ ${routeInfo.minutes % 60} phút`
-                      : `${routeInfo.minutes} phút`}
-                  </strong>{' '}
-                  (một chiều)
-                </p>
-                {routeInfo.line && routeInfo.line.length > 1 && (
-                  <Suspense fallback={<div className="h-52 w-full rounded-xl bg-slate-100 animate-pulse" />}>
-                    <RouteMap line={routeInfo.line} bbox={routeInfo.bbox} />
-                  </Suspense>
-                )}
-                <button
-                  type="button"
-                  onClick={() => {
-                    const first = filteredVehicles[0] || vehicles[0];
-                    if (first) handleOpenBookVehicle(first);
-                  }}
-                  disabled={vehicles.length === 0}
-                  className="w-full h-10 rounded-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white text-sm font-medium transition"
-                >
-                  Đặt xe cho chuyến này
-                </button>
+                      ? `${Math.floor(routeInfo.minutes / 60)}h${String(routeInfo.minutes % 60).padStart(2, '0')}'`
+                      : `${routeInfo.minutes}'`}{' '}
+                    · {routeInfo.km} km
+                  </div>
+                </div>
+
+                {/* Danh sách xe như app gọi xe: tự lái hiện giá/ngày, có tài xế tính theo cước nên mời gọi hotline */}
+                <div className="divide-y divide-slate-100 -mx-1">
+                  {plannerVehicles.map((veh) => {
+                    const active = veh.id === plannerVehicle?.id;
+                    return (
+                      <button
+                        key={veh.id}
+                        type="button"
+                        onClick={() => setPlannerVehicleId(veh.id)}
+                        className={`w-full flex items-center gap-3 px-2 py-2.5 rounded-xl text-left border transition ${
+                          active ? 'border-blue-500 bg-blue-50/60' : 'border-transparent hover:bg-slate-50'
+                        }`}
+                      >
+                        <div className="w-16 h-11 shrink-0 rounded-lg bg-slate-100 overflow-hidden flex items-center justify-center">
+                          {veh.images?.[0] ? (
+                            <img
+                              src={veh.images[0]}
+                              alt=""
+                              loading="lazy"
+                              decoding="async"
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <Car className="w-6 h-6 text-slate-400" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-semibold text-slate-900 truncate">
+                            {veh.brand} {veh.model}
+                          </div>
+                          <div className="flex items-center gap-1 text-xs text-slate-500">
+                            <User className="w-3.5 h-3.5" /> {veh.seatCategory}
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          {serviceType === 'SELF_DRIVE' ? (
+                            <>
+                              <div className="font-semibold text-slate-900">{formatVND(veh.dailyRateSelfDrive)}</div>
+                              <div className="text-[11px] text-slate-500">/ngày</div>
+                            </>
+                          ) : (
+                            <span className="text-[11px] text-slate-500">LH Hotline</span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* pr-14 trên điện thoại: chừa chỗ cho cụm nút liên hệ nổi bên phải (FloatingContact) */}
+                <div className="sticky bottom-2 z-10 flex items-center gap-2 pr-14 sm:pr-0">
+                  {serviceType === 'WITH_DRIVER' && tenant?.hotline && (
+                    <a
+                      href={`tel:${tenant.hotline.replace(/\D/g, '')}`}
+                      className="h-11 px-4 rounded-full bg-white border border-slate-200 shadow-sm text-sm font-medium text-slate-800 inline-flex items-center gap-1.5 shrink-0"
+                    >
+                      <Phone className="w-4 h-4 text-blue-600" /> {tenant.hotline}
+                    </a>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => plannerVehicle && handleOpenBookVehicle(plannerVehicle)}
+                    disabled={!plannerVehicle}
+                    className="flex-1 h-11 rounded-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white text-sm font-semibold shadow-sm transition"
+                  >
+                    Đặt xe
+                  </button>
+                </div>
               </>
             )}
           </div>
