@@ -77,6 +77,7 @@ export interface Vehicle {
   id: string;
   tenantId: string;
   plateNumber: string;
+  plateColor?: 'WHITE' | 'YELLOW'; // Biển trắng (mặc định) thì trang khách ẩn số biển
   brand: string;          // Hãng xe: Toyota, Mitsubishi, VinFast, Ford, Hyundai, Kia...
   model: string;          // Dòng xe: Xpander, Innova Cross, VF8, Vios, Carnival...
   vehicleType: VehicleType;

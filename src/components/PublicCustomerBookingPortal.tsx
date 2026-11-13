@@ -671,8 +671,13 @@ export const PublicCustomerBookingPortal: React.FC = () => {
                   </div>
                   <h3 className="text-xl font-semibold tracking-tight text-slate-900 mt-0.5">{veh.model}</h3>
                   <div className="text-xs text-slate-500 mt-0.5">
-                    Màu: <strong>{veh.color}</strong> • Biển số:{' '}
-                    <span className="font-mono font-bold text-slate-800">{veh.plateNumber}</span>
+                    Màu: <strong>{veh.color}</strong>
+                    {veh.plateNumber && (
+                      <>
+                        {' '}• Biển số:{' '}
+                        <span className="font-mono font-bold text-slate-800">{veh.plateNumber}</span>
+                      </>
+                    )}
                   </div>
                 </div>
 
@@ -752,7 +757,7 @@ export const PublicCustomerBookingPortal: React.FC = () => {
                   {selectedVehicle.model}
                 </h3>
                 <p className="text-xs text-slate-500">
-                  Biển số: {selectedVehicle.plateNumber} • Xác nhận lịch tự động qua Zalo / SĐT
+                  {selectedVehicle.plateNumber && `Biển số: ${selectedVehicle.plateNumber} • `}Xác nhận lịch tự động qua Zalo / SĐT
                 </p>
                 {!createdBooking && vehicles.length > 1 && (
                   <select
@@ -766,7 +771,8 @@ export const PublicCustomerBookingPortal: React.FC = () => {
                   >
                     {vehicles.map((v) => (
                       <option key={v.id} value={v.id}>
-                        [{v.seatCategory}] {v.brand} {v.model} · {v.plateNumber}
+                        [{v.seatCategory}] {v.brand} {v.model}
+                        {v.plateNumber && ` · ${v.plateNumber}`}
                       </option>
                     ))}
                   </select>
@@ -814,7 +820,8 @@ export const PublicCustomerBookingPortal: React.FC = () => {
                     <span className="text-slate-500">Xe đã chọn:</span>
                     <strong>
                       [{selectedVehicle.seatCategory}] {selectedVehicle.brand}{' '}
-                      {selectedVehicle.model} ({selectedVehicle.plateNumber})
+                      {selectedVehicle.model}
+                      {selectedVehicle.plateNumber && ` (${selectedVehicle.plateNumber})`}
                     </strong>
                   </div>
                   <div className="flex justify-between">

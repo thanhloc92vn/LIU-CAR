@@ -90,6 +90,7 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
   const [showAddVehicle, setShowAddVehicle] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
   const [vPlate, setVPlate] = useState('');
+  const [vPlateColor, setVPlateColor] = useState<'WHITE' | 'YELLOW'>('WHITE');
   const [vBrand, setVBrand] = useState('Toyota');
   const [vModel, setVModel] = useState('');
   const [vType, setVType] = useState<VehicleType>('MPV Đa dụng');
@@ -154,6 +155,7 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
   const handleOpenEditVehicle = (veh: Vehicle) => {
     setEditingVehicle(veh);
     setVPlate(veh.plateNumber);
+    setVPlateColor(veh.plateColor || 'WHITE');
     setVBrand(veh.brand);
     setVModel(veh.model);
     setVType(veh.vehicleType);
@@ -196,6 +198,7 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
       onUpdateVehicle({
         ...editingVehicle,
         plateNumber: vPlate.trim() || editingVehicle.plateNumber,
+        plateColor: vPlateColor,
         brand: vBrand.trim() || editingVehicle.brand,
         model: vModel.trim() || editingVehicle.model,
         vehicleType: vType,
@@ -214,6 +217,7 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
       onAddVehicle({
         tenantId: activeTenantId,
         plateNumber: vPlate.trim() || '51K-999.88',
+        plateColor: vPlateColor,
         brand: vBrand.trim() || 'Toyota',
         model: vModel.trim() || 'Innova Cross',
         vehicleType: vType,
@@ -345,6 +349,7 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
             onClick={() => {
               setEditingVehicle(null);
               setVPlate('');
+              setVPlateColor('WHITE');
               setVModel('');
               setVImages([]);
               setVImageError('');
@@ -810,7 +815,7 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-2.5">
+              <div className="grid grid-cols-4 gap-2.5">
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">Loại ghế *</label>
                   <select
@@ -825,16 +830,27 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
                     ))}
                   </select>
                 </div>
-                <div>
+                <div className="col-span-2">
                   <label className="block font-bold text-slate-700 mb-1">Biển số xe *</label>
-                  <input
-                    type="text"
-                    value={vPlate}
-                    onChange={(e) => setVPlate(e.target.value)}
-                    placeholder="51K-888.99"
-                    className="w-full rounded-lg border border-slate-300 px-2.5 py-2 text-xs font-bold "
-                    required
-                  />
+                  <div className="flex gap-1">
+                    <input
+                      type="text"
+                      value={vPlate}
+                      onChange={(e) => setVPlate(e.target.value)}
+                      placeholder="51K-888.99"
+                      className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2.5 py-2 text-xs font-bold "
+                      required
+                    />
+                    <select
+                      value={vPlateColor}
+                      onChange={(e) => setVPlateColor(e.target.value as 'WHITE' | 'YELLOW')}
+                      aria-label="Màu biển số"
+                      className="rounded-lg border border-slate-300 px-1 py-2 text-xs font-semibold"
+                    >
+                      <option value="WHITE">Biển trắng</option>
+                      <option value="YELLOW">Biển vàng</option>
+                    </select>
+                  </div>
                 </div>
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">Trạng thái</label>
