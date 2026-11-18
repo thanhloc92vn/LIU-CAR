@@ -35,6 +35,7 @@ import { resolveTaxiFare, taxiRatePerKm } from '../utils/taxiFare';
 import { SiteFooter } from './SiteFooter';
 import { FloatingContact } from './FloatingContact';
 import { TravelInfoSections } from './TravelInfoSections';
+import { HowToRentSection } from './HowToRentSection';
 
 // three.js nặng: tách chunk riêng để trang khách hiện ra trước
 const CarShowcase3D = lazy(() => import('./CarShowcase3D'));
@@ -719,6 +720,8 @@ export const PublicCustomerBookingPortal: React.FC = () => {
           ))}
         </div>
       </main>
+
+      <HowToRentSection />
 
       <TravelInfoSections
         destinations={siteContent.destinations}
