@@ -62,6 +62,8 @@ export const DEFAULT_FAQS: SiteFaq[] = [
 export function resolveSiteContent(c?: SiteContent): Required<SiteContent> {
   return {
     facebookUrl: c?.facebookUrl ?? '',
+    telegramPhone: c?.telegramPhone ?? '',
+    zaloPhone: c?.zaloPhone ?? '',
     destinations: c?.destinations ?? DEFAULT_DESTINATIONS,
     faqs: c?.faqs ?? DEFAULT_FAQS,
   };

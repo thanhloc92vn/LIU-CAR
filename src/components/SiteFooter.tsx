@@ -5,6 +5,7 @@ import { SHOWCASE_CARS } from '../data/showcaseCars';
 
 interface SiteFooterProps {
   hotline: string;
+  zaloPhone: string;
   onSelectService: (service: 'WITH_DRIVER' | 'SELF_DRIVE') => void;
   onOpenLookup: () => void;
 }
@@ -17,7 +18,7 @@ const LinkButton: React.FC<{ onClick: () => void; children: React.ReactNode }> =
   </button>
 );
 
-export const SiteFooter: React.FC<SiteFooterProps> = ({ hotline, onSelectService, onOpenLookup }) => {
+export const SiteFooter: React.FC<SiteFooterProps> = ({ hotline, zaloPhone, onSelectService, onOpenLookup }) => {
   const [openPolicy, setOpenPolicy] = useState<PolicyId | null>(null);
   const policy = POLICIES.find((p) => p.id === openPolicy);
   const credited = SHOWCASE_CARS.filter((c) => c.credit);
@@ -63,7 +64,7 @@ export const SiteFooter: React.FC<SiteFooterProps> = ({ hotline, onSelectService
               <Phone className="w-3.5 h-3.5" /> {hotline}
             </a>
             <a
-              href={`https://zalo.me/${hotline.replace(/\D/g, '')}`}
+              href={`https://zalo.me/${(zaloPhone || hotline).replace(/\D/g, '')}`}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center h-8 px-4 rounded-full bg-[#0068FF] hover:bg-[#0057d9] text-white text-xs font-semibold transition"

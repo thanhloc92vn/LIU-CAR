@@ -7,8 +7,9 @@ import { uploadDestinationImage } from '../services/supabaseClient';
 
 interface SiteContentTabProps {
   content?: SiteContent;
+  hotline: string;
   canEdit: boolean;
-  onSave: (content: SiteContent) => void;
+  onSave: (content: SiteContent, hotline: string) => void;
 }
 
 const inputClass = 'w-full rounded-xl border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100';
@@ -18,9 +19,12 @@ const labelClass = 'block text-xs font-medium text-slate-500 mb-1';
 const toLines = (answer: string[]) => answer.join('\n');
 const fromLines = (text: string) => text.split('\n').map((l) => l.trim()).filter(Boolean);
 
-export const SiteContentTab: React.FC<SiteContentTabProps> = ({ content, canEdit, onSave }) => {
+export const SiteContentTab: React.FC<SiteContentTabProps> = ({ content, hotline: initialHotline, canEdit, onSave }) => {
   const initial = resolveSiteContent(content);
+  const [hotline, setHotline] = useState(initialHotline);
+  const [zaloPhone, setZaloPhone] = useState(initial.zaloPhone);
   const [facebookUrl, setFacebookUrl] = useState(initial.facebookUrl);
+  const [telegramPhone, setTelegramPhone] = useState(initial.telegramPhone);
   const [destinations, setDestinations] = useState<SiteDestination[]>(initial.destinations);
   const [faqs, setFaqs] = useState<SiteFaq[]>(initial.faqs);
 
@@ -45,11 +49,16 @@ export const SiteContentTab: React.FC<SiteContentTabProps> = ({ content, canEdit
   };
 
   const handleSave = () => {
-    onSave({
+    onSave(
+      {
+      zaloPhone: zaloPhone.trim(),
       facebookUrl: facebookUrl.trim(),
+      telegramPhone: telegramPhone.trim(),
       destinations: destinations.filter((d) => d.name.trim()),
       faqs: faqs.filter((f) => f.question.trim()).map((f) => ({ ...f, answer: f.answer.filter(Boolean) })),
-    });
+      },
+      hotline.trim() || initialHotline
+    );
   };
 
   return (
@@ -73,13 +82,40 @@ export const SiteContentTab: React.FC<SiteContentTabProps> = ({ content, canEdit
       </div>
 
       <section className="bg-white rounded-2xl p-4 shadow-sm">
-        <label className={labelClass}>Link trang Facebook (để trống thì ẩn nút Facebook)</label>
+        <label className={labelClass}>Số hotline (hiện trên trang khách, hợp đồng, voucher; cũng dùng cho nút Viber)</label>
+        <input
+          type="tel"
+          value={hotline}
+          onChange={(e) => setHotline(e.target.value)}
+          disabled={!canEdit}
+          placeholder="0912345678"
+          className={inputClass}
+        />
+        <label className={`${labelClass} mt-3`}>Số Zalo (để trống thì dùng số hotline)</label>
+        <input
+          type="tel"
+          value={zaloPhone}
+          onChange={(e) => setZaloPhone(e.target.value)}
+          disabled={!canEdit}
+          placeholder="0912345678"
+          className={inputClass}
+        />
+        <label className={`${labelClass} mt-3`}>Link trang Facebook (để trống thì ẩn nút Facebook)</label>
         <input
           type="url"
           value={facebookUrl}
           onChange={(e) => setFacebookUrl(e.target.value)}
           disabled={!canEdit}
           placeholder="https://www.facebook.com/..."
+          className={inputClass}
+        />
+        <label className={`${labelClass} mt-3`}>SĐT Telegram (để trống thì ẩn nút Telegram)</label>
+        <input
+          type="tel"
+          value={telegramPhone}
+          onChange={(e) => setTelegramPhone(e.target.value)}
+          disabled={!canEdit}
+          placeholder="0912345678"
           className={inputClass}
         />
       </section>

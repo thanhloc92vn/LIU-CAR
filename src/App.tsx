@@ -1645,11 +1645,12 @@ export function App() {
             <SiteContentTab
               key={activeTenant.id}
               content={activeTenant.siteContent}
+              hotline={activeTenant.hotline}
               canEdit={authSession.role === 'ADMIN'}
-              onSave={(siteContent) => {
+              onSave={(siteContent, hotline) => {
                 setDb((prev) => ({
                   ...prev,
-                  tenants: prev.tenants.map((t) => (t.id === activeTenant.id ? { ...t, siteContent } : t)),
+                  tenants: prev.tenants.map((t) => (t.id === activeTenant.id ? { ...t, siteContent, hotline } : t)),
                 }));
                 showToast('Đã lưu nội dung trang khách');
               }}

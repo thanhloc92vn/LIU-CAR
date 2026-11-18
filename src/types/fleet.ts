@@ -35,6 +35,8 @@ export interface SiteFaq {
 // Nội dung trang khách do admin chỉnh. Trường nào chưa có thì trang khách dùng nội dung mặc định.
 export interface SiteContent {
   facebookUrl?: string;
+  telegramPhone?: string;
+  zaloPhone?: string;
   destinations?: SiteDestination[];
   faqs?: SiteFaq[];
 }

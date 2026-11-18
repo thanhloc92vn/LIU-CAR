@@ -733,12 +733,15 @@ export const PublicCustomerBookingPortal: React.FC = () => {
       <FloatingContact
         hotline={tenant.hotline}
         facebookUrl={siteContent.facebookUrl}
+        telegramPhone={siteContent.telegramPhone}
+        zaloPhone={siteContent.zaloPhone}
         onBook={() => document.getElementById('danh-sach-xe')?.scrollIntoView({ behavior: 'smooth' })}
       />
 
       {/* Footer (Không lộ nút Admin, chỉ có thông tin công ty) */}
       <SiteFooter
         hotline={tenant.hotline}
+        zaloPhone={siteContent.zaloPhone}
         onSelectService={(s) => {
           setServiceType(s);
           document.getElementById('danh-sach-xe')?.scrollIntoView({ behavior: 'smooth' });
