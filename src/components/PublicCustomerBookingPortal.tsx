@@ -1030,9 +1030,11 @@ export const PublicCustomerBookingPortal: React.FC = () => {
                         type="button"
                         onClick={() => setIsRoundTrip(round)}
                         className={`py-2 rounded-lg font-bold border transition ${
-                          isRoundTrip === round
-                            ? 'bg-blue-600 text-white border-blue-600'
-                            : 'bg-white text-slate-700 border-slate-300'
+                          isRoundTrip !== round
+                            ? 'bg-white text-slate-700 border-slate-300'
+                            : round
+                              ? 'bg-emerald-600 text-white border-emerald-600'
+                              : 'bg-blue-600 text-white border-blue-600'
                         }`}
                       >
                         {round
