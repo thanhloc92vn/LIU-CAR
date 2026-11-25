@@ -17,6 +17,7 @@ export const TaxiFareModal: React.FC<TaxiFareModalProps> = ({ value, canEdit, on
   const [perKm7, setPerKm7] = useState(String(init.perKm7Seats));
   const [surcharge, setSurcharge] = useState(String(init.holidaySurchargePerKm));
   const [holidays, setHolidays] = useState(init.holidays);
+  const [roundTripDiscount, setRoundTripDiscount] = useState(String(init.roundTripDiscountPercent));
 
   const setHoliday = (i: number, key: 'from' | 'to', v: string) =>
     setHolidays((hs) => hs.map((h, j) => (j === i ? { ...h, [key]: v } : h)));
@@ -27,6 +28,7 @@ export const TaxiFareModal: React.FC<TaxiFareModalProps> = ({ value, canEdit, on
       perKm4To5Seats: Number(perKm45) || 0,
       perKm7Seats: Number(perKm7) || 0,
       holidaySurchargePerKm: Number(surcharge) || 0,
+      roundTripDiscountPercent: Math.min(100, Math.max(0, Number(roundTripDiscount) || 0)),
       holidays: holidays
         .filter((h) => h.from)
         .map((h) => ({ from: h.from, to: h.to && h.to >= h.from ? h.to : h.from })),
@@ -66,6 +68,10 @@ export const TaxiFareModal: React.FC<TaxiFareModalProps> = ({ value, canEdit, on
             <label className="space-y-1">
               <span className="block font-medium text-slate-700">Ngày lễ cộng (đ/km)</span>
               <input type="number" min={0} step={500} value={surcharge} onChange={(e) => setSurcharge(e.target.value)} disabled={!canEdit} className={input} />
+            </label>
+            <label className="space-y-1">
+              <span className="block font-medium text-slate-700">Giảm giá khứ hồi (%)</span>
+              <input type="number" min={0} max={100} step={1} value={roundTripDiscount} onChange={(e) => setRoundTripDiscount(e.target.value)} disabled={!canEdit} className={input} />
             </label>
           </div>
 

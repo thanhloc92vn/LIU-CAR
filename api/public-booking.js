@@ -54,7 +54,9 @@ export default async function handler(req, res) {
   const date = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(v || '') ? v : undefined);
   const selfDrive = bookingType === 'SELF_DRIVE';
   const delivery = selfDrive && b.deliveryMode === 'DELIVERY';
-  const tripEndDate = selfDrive && date(b.tripEndDate) >= tripDate ? date(b.tripEndDate) : undefined;
+  // Ngày trả xe (tự lái) hoặc ngày về (có tài xế khứ hồi)
+  const tripEndDate =
+    (selfDrive || b.isRoundTrip !== false) && date(b.tripEndDate) >= tripDate ? date(b.tripEndDate) : undefined;
 
   if (!customerName || !/^[0-9+ .-]{8,20}$/.test(customerPhone) || !/^\d{4}-\d{2}-\d{2}$/.test(tripDate)) {
     return res.status(400).json({ error: 'Vui lòng nhập đúng họ tên, số điện thoại và ngày đi.' });

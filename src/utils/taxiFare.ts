@@ -6,6 +6,7 @@ export const DEFAULT_TAXI_FARE: TaxiFareConfig = {
   perKm7Seats: 12000,
   holidaySurchargePerKm: 3000,
   holidays: [],
+  roundTripDiscountPercent: 0,
 };
 
 export const resolveTaxiFare = (cfg?: Partial<TaxiFareConfig>): TaxiFareConfig => ({

@@ -65,6 +65,7 @@ export interface TaxiFareConfig {
   perKm7Seats: number;         // xe 7 chỗ, đ/km
   holidaySurchargePerKm: number; // cộng thêm mỗi km vào ngày lễ
   holidays: { from: string; to: string }[]; // các đợt lễ, ngày YYYY-MM-DD (gồm cả 2 đầu)
+  roundTripDiscountPercent: number; // giảm % giá cước khi khách đi khứ hồi
 }
 
 export type FuelType = 'ELECTRIC' | 'GASOLINE' | 'DIESEL';

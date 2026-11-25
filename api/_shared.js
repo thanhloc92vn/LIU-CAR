@@ -163,8 +163,6 @@ export async function sendPickupLocation(token, chatId, trip) {
   return res.ok;
 }
 
-const ROUTE_LABELS ={ HIGHWAY: 'Cao tốc', NATIONAL_ROAD: 'Quốc lộ', MIXED: 'Cao tốc + quốc lộ' };
-
 // Nội dung chuyến gửi Telegram. Không có doanh thu hay tiền công vì nhóm có nhiều người xem.
 export function buildTripLines(trip, vehicle) {
   const selfDrive = trip.bookingType === 'SELF_DRIVE';
@@ -178,8 +176,13 @@ export function buildTripLines(trip, vehicle) {
     ...(typeof trip.pickupLat === 'number' && typeof trip.pickupLng === 'number'
       ? [`Định vị điểm đón: https://www.google.com/maps?q=${trip.pickupLat},${trip.pickupLng}`]
       : []),
-    `Tuyến: ${ROUTE_LABELS[trip.routeType] || ''} · ${trip.distanceKm || 0} km`,
-    `Thời gian: ${trip.tripDate}${trip.tripEndDate && trip.tripEndDate !== trip.tripDate ? ` → ${trip.tripEndDate}` : ''} (${trip.departureTime} - ${trip.returnTime})`,
+    // Chuyến nhiều ngày: ghi rõ ngày giờ lấy xe và trả xe
+    ...(trip.tripEndDate && trip.tripEndDate !== trip.tripDate
+      ? [
+          `${selfDrive ? 'Lấy xe' : 'Khởi hành'}: ${trip.departureTime} ngày ${trip.tripDate}`,
+          `${selfDrive ? 'Trả xe' : 'Về'}: ${trip.returnTime} ngày ${trip.tripEndDate}`,
+        ]
+      : [`Thời gian: ${trip.tripDate} (${trip.departureTime} - ${trip.returnTime})`]),
     `Khách: ${trip.customerName} (${trip.customerPhone})`,
   ];
 }

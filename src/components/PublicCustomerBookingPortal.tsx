@@ -36,6 +36,7 @@ import { SiteFooter } from './SiteFooter';
 import { FloatingContact } from './FloatingContact';
 import { TravelInfoSections } from './TravelInfoSections';
 import { HowToRentSection } from './HowToRentSection';
+import TimeSelect24h from './TimeSelect24h';
 
 // three.js nặng: tách chunk riêng để trang khách hiện ra trước
 const CarShowcase3D = lazy(() => import('./CarShowcase3D'));
@@ -105,8 +106,8 @@ export const PublicCustomerBookingPortal: React.FC = () => {
   const [deliveryMode, setDeliveryMode] = useState<'SELF_PICKUP' | 'DELIVERY'>('SELF_PICKUP');
   const [showContract, setShowContract] = useState(false);
   const [tripDate, setTripDate] = useState(todayLocal);
-  const [departureTime, setDepartureTime] = useState('07:30');
-  const [returnTime, setReturnTime] = useState('19:30');
+  const [departureTime, setDepartureTime] = useState('');
+  const [returnTime, setReturnTime] = useState('');
   const [pickupLocation, setPickupLocation] = useState('');
   const [dropoffLocation, setDropoffLocation] = useState('');
   const [pickupPlaceId, setPickupPlaceId] = useState<string | null>(null);
@@ -120,9 +121,9 @@ export const PublicCustomerBookingPortal: React.FC = () => {
     bbox?: [number, number, number, number];
     pickup?: [number, number];
   } | null>(null);
-  const [routeType, setRouteType] = useState<RouteType>('HIGHWAY');
-  const [selectedPresetId, setSelectedPresetId] = useState<string>(highwayPresets[0]?.id || '');
-  const [isRoundTrip, setIsRoundTrip] = useState(true);
+  const [routeType] = useState<RouteType>('HIGHWAY');
+  const [selectedPresetId] = useState<string>(highwayPresets[0]?.id || '');
+  const [isRoundTrip, setIsRoundTrip] = useState(false);
   // Xe khách chọn trong danh sách hiện ra sau khi có lộ trình (kiểu app gọi xe)
   const [plannerVehicleId, setPlannerVehicleId] = useState<string | null>(null);
 
@@ -266,11 +267,13 @@ export const PublicCustomerBookingPortal: React.FC = () => {
     const estimatedFare =
       serviceType === 'SELF_DRIVE'
         ? selectedVehicle.dailyRateSelfDrive * rentalDays
-        : taxiPrice(selectedVehicle, distanceKm) ??
-          Math.round(
-            selectedVehicle.dailyRateSelfDrive +
-              distanceKm * (selectedVehicle.fuelCostPerKm + 4500)
-          );
+        : Math.round(
+            ((taxiPrice(selectedVehicle, distanceKm) ??
+              selectedVehicle.dailyRateSelfDrive + distanceKm * (selectedVehicle.fuelCostPerKm + 4500)) *
+              (100 - (isRoundTrip ? taxiFare.roundTripDiscountPercent : 0))) /
+              100 /
+              1000
+          ) * 1000; // khứ hồi trừ % giảm admin đặt, làm tròn đến nghìn
 
     const autoHighwayToll =
       routeType === 'HIGHWAY' || routeType === 'MIXED'
@@ -303,7 +306,7 @@ export const PublicCustomerBookingPortal: React.FC = () => {
       customerCccdIssueDate: customerCccdIssueDate || undefined,
       customerCccdIssuePlace: customerCccdIssuePlace.trim() || undefined,
       deliveryMode,
-      tripEndDate: serviceType === 'SELF_DRIVE' ? tripEndDate : undefined,
+      tripEndDate: serviceType === 'SELF_DRIVE' || isRoundTrip ? tripEndDate : undefined,
       tripDate,
       departureTime,
       returnTime,
@@ -1019,7 +1022,28 @@ export const PublicCustomerBookingPortal: React.FC = () => {
                   </div>
                 )}
 
-                <div className={`grid gap-2.5 ${serviceType === 'SELF_DRIVE' ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-3'}`}>
+                {serviceType === 'WITH_DRIVER' && (
+                  <div className="grid grid-cols-2 gap-2">
+                    {[false, true].map((round) => (
+                      <button
+                        key={String(round)}
+                        type="button"
+                        onClick={() => setIsRoundTrip(round)}
+                        className={`py-2 rounded-lg font-bold border transition ${
+                          isRoundTrip === round
+                            ? 'bg-blue-600 text-white border-blue-600'
+                            : 'bg-white text-slate-700 border-slate-300'
+                        }`}
+                      >
+                        {round
+                          ? `Khứ hồi${taxiFare.roundTripDiscountPercent > 0 ? ` (giảm ${taxiFare.roundTripDiscountPercent}%)` : ''}`
+                          : 'Một chiều'}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <div className={`grid gap-2.5 ${serviceType === 'SELF_DRIVE' || isRoundTrip ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-3'}`}>
                   <div>
                     <label className="block font-bold text-slate-700 mb-1">
                       {serviceType === 'SELF_DRIVE' ? 'Ngày nhận xe *' : 'Ngày khởi hành *'}
@@ -1028,25 +1052,30 @@ export const PublicCustomerBookingPortal: React.FC = () => {
                       type="date"
                       value={tripDate}
                       min={todayLocal()}
-                      onChange={(e) => setTripDate(e.target.value)}
+                      onChange={(e) => {
+                        setTripDate(e.target.value);
+                        if (tripEndDate < e.target.value) setTripEndDate(e.target.value);
+                      }}
                       className="w-full rounded-xl border border-slate-300 px-2.5 py-2"
                       required
                     />
                   </div>
                   <div>
                     <label className="block font-bold text-slate-700 mb-1">
-                      {serviceType === 'SELF_DRIVE' ? 'Giờ nhận' : 'Giờ đón'}
+                      {serviceType === 'SELF_DRIVE' ? 'Giờ nhận *' : 'Giờ đón *'}
                     </label>
-                    <input
-                      type="time"
+                    <TimeSelect24h
                       value={departureTime}
-                      onChange={(e) => setDepartureTime(e.target.value)}
-                      className="w-full rounded-xl border border-slate-300 px-2.5 py-2"
+                      onChange={setDepartureTime}
+                      required
+                      className="w-full rounded-xl border border-slate-300 px-2.5 py-2 bg-white"
                     />
                   </div>
-                  {serviceType === 'SELF_DRIVE' && (
+                  {(serviceType === 'SELF_DRIVE' || isRoundTrip) && (
                     <div>
-                      <label className="block font-bold text-slate-700 mb-1">Ngày trả xe *</label>
+                      <label className="block font-bold text-slate-700 mb-1">
+                        {serviceType === 'SELF_DRIVE' ? 'Ngày trả xe *' : 'Ngày về *'}
+                      </label>
                       <input
                         type="date"
                         value={tripEndDate}
@@ -1059,13 +1088,13 @@ export const PublicCustomerBookingPortal: React.FC = () => {
                   )}
                   <div>
                     <label className="block font-bold text-slate-700 mb-1">
-                      {serviceType === 'SELF_DRIVE' ? 'Giờ trả' : 'Giờ về dự kiến'}
+                      {serviceType === 'SELF_DRIVE' ? 'Giờ trả *' : isRoundTrip ? 'Giờ về *' : 'Giờ về dự kiến *'}
                     </label>
-                    <input
-                      type="time"
+                    <TimeSelect24h
                       value={returnTime}
-                      onChange={(e) => setReturnTime(e.target.value)}
-                      className="w-full rounded-xl border border-slate-300 px-2.5 py-2"
+                      onChange={setReturnTime}
+                      required
+                      className="w-full rounded-xl border border-slate-300 px-2.5 py-2 bg-white"
                     />
                   </div>
                 </div>
@@ -1073,9 +1102,20 @@ export const PublicCustomerBookingPortal: React.FC = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {(serviceType !== 'SELF_DRIVE' || deliveryMode === 'DELIVERY') && (
                     <div>
-                      <label className="block font-bold text-slate-700 mb-1">
-                        {serviceType === 'SELF_DRIVE' ? 'Địa chỉ giao xe *' : 'Điểm đón khách *'}
-                      </label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="font-bold text-slate-700">
+                          {serviceType === 'SELF_DRIVE' ? 'Địa chỉ giao xe *' : 'Điểm đón khách *'}
+                        </label>
+                        <button
+                          type="button"
+                          onClick={handleUseMyLocation}
+                          disabled={locating}
+                          className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700 disabled:text-slate-400"
+                        >
+                          <LocateFixed className="w-3.5 h-3.5" />
+                          {locating ? 'Đang định vị...' : 'Vị trí của tôi'}
+                        </button>
+                      </div>
                       <PlaceInput
                         value={pickupLocation}
                         onChange={setPickupLocation}
@@ -1084,6 +1124,7 @@ export const PublicCustomerBookingPortal: React.FC = () => {
                         placeholder="Chọn tỉnh/thành hoặc gõ địa chỉ đón..."
                         required
                       />
+                      {locateError && <p className="mt-1 text-xs text-amber-700">{locateError}</p>}
                     </div>
                   )}
                   <div>
@@ -1113,56 +1154,6 @@ export const PublicCustomerBookingPortal: React.FC = () => {
                   <Suspense fallback={<div className="h-52 w-full rounded-xl bg-slate-100 animate-pulse" />}>
                     <RouteMap line={routeInfo.line} bbox={routeInfo.bbox} />
                   </Suspense>
-                )}
-
-                {/* Chọn lộ trình Cao tốc vs Quốc lộ (chỉ ảnh hưởng giá xe có tài xế, tự lái không cần) */}
-                {serviceType !== 'SELF_DRIVE' && (
-                <div className="bg-blue-50/70 p-3.5 rounded-xl border border-blue-200 space-y-2.5">
-                  <label className="block font-bold text-blue-950">
-                    Tùy chọn lộ trình di chuyển (Cao tốc hay Quốc lộ):
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setRouteType('HIGHWAY')}
-                      className={`py-2 px-3 rounded-lg font-bold border text-center transition ${
-                        routeType === 'HIGHWAY'
-                          ? 'bg-indigo-600 text-white border-indigo-600'
-                          : 'bg-white text-slate-700 border-slate-300'
-                      }`}
-                    >
-                      Đi Đường Cao Tốc (Nhanh)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setRouteType('NATIONAL_ROAD')}
-                      className={`py-2 px-3 rounded-lg font-bold border text-center transition ${
-                        routeType === 'NATIONAL_ROAD'
-                          ? 'bg-amber-600 text-white border-amber-600'
-                          : 'bg-white text-slate-700 border-slate-300'
-                      }`}
-                    >
-                      Đi Đường Quốc Lộ
-                    </button>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs text-slate-600 mb-1">
-                      Tuyến hành trình phổ biến:
-                    </label>
-                    <select
-                      value={selectedPresetId}
-                      onChange={(e) => setSelectedPresetId(e.target.value)}
-                      className="w-full rounded-lg border border-blue-300 bg-white px-2.5 py-1.5 font-medium"
-                    >
-                      {highwayPresets.map((hp) => (
-                        <option key={hp.id} value={hp.id}>
-                          {hp.name} ({hp.defaultDistanceKm} km/chiều)
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
                 )}
 
                 <div>

@@ -30,6 +30,7 @@ import { ownsVehicle } from '../utils/party';
 import { todayLocal } from '../utils/date';
 import { calculateTripFinancials, formatVND } from '../utils/calculations';
 import { DEFAULT_BATTERY_RATE_PER_KM, getJourneyPricing, journeyTollFor } from '../utils/journey';
+import TimeSelect24h from './TimeSelect24h';
 
 interface BookingModalProps {
   isOpen: boolean;
@@ -796,20 +797,18 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">Giờ xuất phát</label>
-                  <input
-                    type="time"
+                  <TimeSelect24h
                     value={departureTime}
-                    onChange={(e) => setDepartureTime(e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium"
+                    onChange={setDepartureTime}
+                    className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium bg-white"
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">Giờ kết thúc</label>
-                  <input
-                    type="time"
+                  <TimeSelect24h
                     value={returnTime}
-                    onChange={(e) => setReturnTime(e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium"
+                    onChange={setReturnTime}
+                    className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium bg-white"
                   />
                 </div>
               </div>
