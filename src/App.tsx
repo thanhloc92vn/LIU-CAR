@@ -64,6 +64,7 @@ import { useConfirm } from './components/ConfirmDialog';
 import { DriverEarningsTab } from './components/DriverEarningsTab';
 import { PrintableVoucherModal } from './components/PrintableVoucherModal';
 import { PublicCustomerBookingPortal } from './components/PublicCustomerBookingPortal';
+import { TermsPage } from './components/TermsPage';
 
 type ActiveTab = 'BOOKINGS' | 'JOURNEYS' | 'FINANCE' | 'FLEET_DRIVERS' | 'AI_BOT' | 'SITE_CONTENT';
 
@@ -898,6 +899,9 @@ export function App() {
 
   // Handler when a public customer submits a booking from `/`
   // 1. TRANG CÔNG KHAI CHO KHÁCH HÀNG ĐẶT XE (`/`) — Tách biệt hoàn toàn khỏi link Admin
+  if (!isAdminRoute && window.location.pathname.toLowerCase().startsWith('/dieu-khoan')) {
+    return <TermsPage />;
+  }
   if (!isAdminRoute) {
     return (
       <PublicCustomerBookingPortal />
@@ -1333,6 +1337,12 @@ export function App() {
                           <div className="text-slate-600">
                             Tuyến: <span className="text-slate-900">{trip.routeDetail}</span> ({trip.distanceKm} km)
                           </div>
+                          {trip.freight && (
+                            <div className="text-slate-600">
+                              Hàng hóa: <span className="text-slate-900">{trip.freight.description}</span>
+                              {trip.freight.weightKg ? ` (~${trip.freight.weightKg} kg)` : ''}
+                            </div>
+                          )}
                           <div className="text-slate-600">
                             Thời gian: <span className="text-slate-900">{trip.tripDate}</span>
                             {trip.tripEndDate && trip.tripEndDate !== trip.tripDate && (
@@ -1636,6 +1646,14 @@ export function App() {
                   tenants: prev.tenants.map((t) => (t.id === activeTenant.id ? { ...t, taxiFare } : t)),
                 }));
                 showToast('Đã lưu giá cước taxi');
+              }}
+              truckFare={activeTenant.truckFare}
+              onSaveTruckFare={(truckFare) => {
+                setDb((prev) => ({
+                  ...prev,
+                  tenants: prev.tenants.map((t) => (t.id === activeTenant.id ? { ...t, truckFare } : t)),
+                }));
+                showToast('Đã lưu giá cước xe tải');
               }}
             />
           )}

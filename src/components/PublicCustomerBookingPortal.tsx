@@ -17,6 +17,7 @@ import {
   Phone,
   Search,
   ShieldCheck,
+  Truck,
   User,
   UserCheck,
   X,
@@ -28,10 +29,12 @@ import {
   SeatCategory,
   TenantConfig,
   Trip,
+  TRUCK_CLASSES,
   Vehicle,
 } from '../types/fleet';
 import { formatVND } from '../utils/calculations';
 import { resolveTaxiFare, taxiRatePerKm } from '../utils/taxiFare';
+import { isTruckClass, truckPrice } from '../utils/truck';
 import { SiteFooter } from './SiteFooter';
 import { FloatingContact } from './FloatingContact';
 import { TravelInfoSections } from './TravelInfoSections';
@@ -89,7 +92,12 @@ export const PublicCustomerBookingPortal: React.FC = () => {
   const highwayPresets = catalog?.highwayPresets || [];
   const [seatFilter, setSeatFilter] = useState<'ALL' | SeatCategory>('ALL');
   const [brandFilter, setBrandFilter] = useState<string>('ALL');
-  const [serviceType, setServiceType] = useState<'WITH_DRIVER' | 'SELF_DRIVE'>('WITH_DRIVER');
+  // TRUCK = xe tải giao hàng (chủ xe chạy), gửi lên máy chủ như chuyến có tài xế kèm thông tin hàng hóa
+  const [serviceType, setServiceType] = useState<'WITH_DRIVER' | 'SELF_DRIVE' | 'TRUCK'>('WITH_DRIVER');
+  const isTruckMode = serviceType === 'TRUCK';
+  const [cargoDescription, setCargoDescription] = useState('');
+  const [cargoWeight, setCargoWeight] = useState('');
+  const [acceptTerms, setAcceptTerms] = useState(false);
 
   // Booking modal for customer
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
@@ -124,6 +132,8 @@ export const PublicCustomerBookingPortal: React.FC = () => {
   const [routeType] = useState<RouteType>('HIGHWAY');
   const [selectedPresetId] = useState<string>(highwayPresets[0]?.id || '');
   const [isRoundTrip, setIsRoundTrip] = useState(false);
+  // Khứ hồi chỉ áp dụng cho xe có tài xế
+  const roundTrip = serviceType === 'WITH_DRIVER' && isRoundTrip;
   // Xe khách chọn trong danh sách hiện ra sau khi có lộ trình (kiểu app gọi xe)
   const [plannerVehicleId, setPlannerVehicleId] = useState<string | null>(null);
 
@@ -160,7 +170,12 @@ export const PublicCustomerBookingPortal: React.FC = () => {
 
   const brands = Array.from(new Set(vehicles.map((v) => v.brand)));
 
+  // Đổi giữa xe con và xe tải thì bỏ lọc loại ghế cũ
+  useEffect(() => setSeatFilter('ALL'), [isTruckMode]);
+  const seatOptions: ('ALL' | SeatCategory)[] = isTruckMode ? ['ALL', ...TRUCK_CLASSES] : SEAT_OPTIONS;
+
   const filteredVehicles = vehicles.filter((v) => {
+    if (isTruckClass(v.seatCategory) !== isTruckMode) return false;
     if (seatFilter !== 'ALL' && v.seatCategory !== seatFilter) return false;
     if (brandFilter !== 'ALL' && v.brand !== brandFilter) return false;
     return true;
@@ -173,7 +188,14 @@ export const PublicCustomerBookingPortal: React.FC = () => {
     return rate && km ? Math.round((km * rate) / 1000) * 1000 : null; // làm tròn đến nghìn
   };
 
-  const plannerVehicles = vehicles.filter((v) => v.serviceMode === 'BOTH' || v.serviceMode === serviceType);
+  const plannerVehicles = vehicles.filter((v) =>
+    isTruckMode
+      ? isTruckClass(v.seatCategory)
+      : !isTruckClass(v.seatCategory) && (v.serviceMode === 'BOTH' || v.serviceMode === serviceType)
+  );
+  // Giá một chiều: xe tải theo bảng giá xe tải, xe con theo cước taxi
+  const oneWayPrice = (veh: Vehicle, km: number | undefined) =>
+    isTruckClass(veh.seatCategory) ? truckPrice(tenant?.truckFare, veh.seatCategory, km) : taxiPrice(veh, km);
   const plannerVehicle = plannerVehicles.find((v) => v.id === plannerVehicleId) || plannerVehicles[0];
 
   // Chỉ cần SĐT đặt xe; nhập thêm mã chuyến để xem đủ điểm đón/trả, biển số, tài xế
@@ -247,6 +269,8 @@ export const PublicCustomerBookingPortal: React.FC = () => {
     setSelectedVehicle(veh);
     setCreatedBooking(null);
     setShowContract(false);
+    if (isTruckClass(veh.seatCategory)) setServiceType('TRUCK');
+    else if (isTruckMode) setServiceType(veh.serviceMode === 'SELF_DRIVE' ? 'SELF_DRIVE' : 'WITH_DRIVER');
   };
 
   const handleCustomerSubmit = async (e: React.FormEvent) => {
@@ -262,40 +286,47 @@ export const PublicCustomerBookingPortal: React.FC = () => {
       highwayPresets.find((p) => p.id === selectedPresetId) || highwayPresets[0];
     // Khách chọn đủ hai điểm từ gợi ý thì dùng km thật theo bản đồ, không thì theo tuyến phổ biến
     const oneWayKm = routeInfo?.km || preset?.defaultDistanceKm || 150;
-    const distanceKm = oneWayKm * (isRoundTrip ? 2 : 1);
+    const distanceKm = oneWayKm * (roundTrip ? 2 : 1);
     // Estimate base fare based on vehicle rate & distance
     const estimatedFare =
       serviceType === 'SELF_DRIVE'
         ? selectedVehicle.dailyRateSelfDrive * rentalDays
+        : isTruckMode
+        ? truckPrice(tenant.truckFare, selectedVehicle.seatCategory, oneWayKm) ?? 0
         : Math.round(
             ((taxiPrice(selectedVehicle, distanceKm) ??
               selectedVehicle.dailyRateSelfDrive + distanceKm * (selectedVehicle.fuelCostPerKm + 4500)) *
-              (100 - (isRoundTrip ? taxiFare.roundTripDiscountPercent : 0))) /
+              (100 - (roundTrip ? taxiFare.roundTripDiscountPercent : 0))) /
               100 /
               1000
           ) * 1000; // khứ hồi trừ % giảm admin đặt, làm tròn đến nghìn
 
+    // Xe tải: phí cầu đường, nhiên liệu do khách và chủ xe tự thỏa thuận; nền tảng kết nối miễn phí
     const autoHighwayToll =
-      routeType === 'HIGHWAY' || routeType === 'MIXED'
+      !isTruckMode && (routeType === 'HIGHWAY' || routeType === 'MIXED')
         ? Math.round(
             (preset?.baseToll4To7Seats || 150000) *
               (selectedVehicle.highwayTollMultiplier || 1) *
-              (isRoundTrip ? 2 : 1)
+              (roundTrip ? 2 : 1)
           )
         : 0;
 
     const autoFuelQuota =
-      serviceType === 'SELF_DRIVE'
+      serviceType !== 'WITH_DRIVER'
         ? 0
         : Math.round(distanceKm * (selectedVehicle.fuelCostPerKm || 2000));
 
-    const autoDispatchFee = Math.round(
-      (estimatedFare * (tenant.defaultDispatchFeePercent || 10)) / 100
-    );
+    const autoDispatchFee = isTruckMode
+      ? 0
+      : Math.round((estimatedFare * (tenant.defaultDispatchFeePercent || 10)) / 100);
 
     // Máy chủ tự đặt mã chuyến, trạng thái và kiểm tra lại dữ liệu; chỉ gửi phần khách điền và giá tạm tính
     const booking = {
-      bookingType: serviceType,
+      bookingType: isTruckMode ? 'WITH_DRIVER' : serviceType,
+      freight: isTruckMode
+        ? { description: cargoDescription.trim(), weightKg: Number(cargoWeight) || undefined }
+        : undefined,
+      acceptTerms: isTruckMode ? acceptTerms : undefined,
       vehicleId: selectedVehicle.id,
       customerName: customerName.trim(),
       customerPhone: customerPhone.trim(),
@@ -306,7 +337,7 @@ export const PublicCustomerBookingPortal: React.FC = () => {
       customerCccdIssueDate: customerCccdIssueDate || undefined,
       customerCccdIssuePlace: customerCccdIssuePlace.trim() || undefined,
       deliveryMode,
-      tripEndDate: serviceType === 'SELF_DRIVE' || isRoundTrip ? tripEndDate : undefined,
+      tripEndDate: serviceType === 'SELF_DRIVE' || roundTrip ? tripEndDate : undefined,
       tripDate,
       departureTime,
       returnTime,
@@ -319,7 +350,7 @@ export const PublicCustomerBookingPortal: React.FC = () => {
       distanceKm,
       pickupLat: routeInfo?.pickup?.[0],
       pickupLng: routeInfo?.pickup?.[1],
-      isRoundTrip,
+      isRoundTrip: roundTrip,
       baseFareRevenue: estimatedFare,
       autoHighwayToll,
       autoFuelQuota,
@@ -355,6 +386,9 @@ export const PublicCustomerBookingPortal: React.FC = () => {
     setDropoffLocation('');
     setDropoffPlaceId(null);
     setCustomerNotes('');
+    setCargoDescription('');
+    setCargoWeight('');
+    setAcceptTerms(false);
   };
 
   if (!tenant) {
@@ -427,6 +461,15 @@ export const PublicCustomerBookingPortal: React.FC = () => {
                 }`}
               >
                 Tự lái theo ngày
+              </button>
+              <button
+                type="button"
+                onClick={() => setServiceType('TRUCK')}
+                className={`px-5 h-9 rounded-full text-sm font-medium transition inline-flex items-center gap-1.5 ${
+                  isTruckMode ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Truck className="w-4 h-4" /> Xe tải giao hàng
               </button>
             </div>
           </div>
@@ -537,9 +580,9 @@ export const PublicCustomerBookingPortal: React.FC = () => {
                               <div className="font-semibold text-slate-900">{formatVND(veh.dailyRateSelfDrive)}</div>
                               <div className="text-[11px] text-slate-500">/ngày</div>
                             </>
-                          ) : taxiPrice(veh, routeInfo.km) !== null ? (
+                          ) : oneWayPrice(veh, routeInfo.km) !== null ? (
                             <>
-                              <div className="font-semibold text-slate-900">{formatVND(taxiPrice(veh, routeInfo.km)!)}</div>
+                              <div className="font-semibold text-slate-900">{formatVND(oneWayPrice(veh, routeInfo.km)!)}</div>
                               <div className="text-[11px] text-slate-500">một chiều</div>
                             </>
                           ) : (
@@ -552,6 +595,12 @@ export const PublicCustomerBookingPortal: React.FC = () => {
                 </div>
 
                 {/* pr-14 trên điện thoại: chừa chỗ cho cụm nút liên hệ nổi bên phải (FloatingContact) */}
+                {isTruckMode && (
+                  <p className="text-[11px] text-slate-500">
+                    Giá xe tải tạm tính theo km một chiều, chưa gồm bốc xếp và phí cầu đường; khách thống nhất giá cuối và
+                    thanh toán trực tiếp với chủ xe.
+                  </p>
+                )}
                 {serviceType === 'WITH_DRIVER' && (
                   <p className="text-[11px] text-slate-500">
                     Giá có tài xế tạm tính theo km một chiều ({formatVND(taxiFare.perKm4To5Seats)}/km xe 4–5 chỗ,{' '}
@@ -561,7 +610,7 @@ export const PublicCustomerBookingPortal: React.FC = () => {
                 )}
 
                 <div className="sticky bottom-2 z-10 flex items-center gap-2 pr-14 sm:pr-0">
-                  {serviceType === 'WITH_DRIVER' && tenant?.hotline && (
+                  {serviceType !== 'SELF_DRIVE' && tenant?.hotline && (
                     <a
                       href={`tel:${tenant.hotline.replace(/\D/g, '')}`}
                       className="h-11 px-4 rounded-full bg-white border border-slate-200 shadow-sm text-sm font-medium text-slate-800 inline-flex items-center gap-1.5 shrink-0"
@@ -589,8 +638,8 @@ export const PublicCustomerBookingPortal: React.FC = () => {
         {/* Filter Bar */}
         <div className="bg-white rounded-2xl p-3 shadow-sm flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
-            <span className="text-xs font-bold text-slate-600 mr-1 shrink-0">Chọn số ghế:</span>
-            {SEAT_OPTIONS.map((seat) => (
+            <span className="text-xs font-bold text-slate-600 mr-1 shrink-0">{isTruckMode ? 'Chọn tải trọng:' : 'Chọn số ghế:'}</span>
+            {seatOptions.map((seat) => (
               <button
                 key={seat}
                 type="button"
@@ -601,7 +650,7 @@ export const PublicCustomerBookingPortal: React.FC = () => {
                     : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                 }`}
               >
-                {seat === 'ALL' ? 'Tất cả loại ghế' : seat}
+                {seat === 'ALL' ? (isTruckMode ? 'Tất cả xe tải' : 'Tất cả loại ghế') : seat}
               </button>
             ))}
           </div>
@@ -622,6 +671,14 @@ export const PublicCustomerBookingPortal: React.FC = () => {
             </select>
           </div>
         </div>
+
+        {filteredVehicles.length === 0 && (
+          <div className="bg-white rounded-2xl shadow-sm py-12 px-4 text-center text-sm text-slate-500">
+            {isTruckMode
+              ? 'Chưa có xe tải phù hợp trên hệ thống. Vui lòng gọi hotline để được tìm xe giúp.'
+              : 'Chưa có xe phù hợp với bộ lọc đang chọn.'}
+          </div>
+        )}
 
         {/* Vehicle Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -687,15 +744,21 @@ export const PublicCustomerBookingPortal: React.FC = () => {
 
                 <div className="bg-slate-50 rounded-xl p-3 space-y-1.5 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-slate-500">Giá thuê tham khảo:</span>
+                    <span className="text-slate-500">{isTruckClass(veh.seatCategory) ? 'Cước tham khảo:' : 'Giá thuê tham khảo:'}</span>
                     <strong className="text-slate-900 text-sm">
-                      Từ {formatVND(veh.dailyRateSelfDrive)}/ngày
+                      {isTruckClass(veh.seatCategory)
+                        ? tenant.truckFare?.[veh.seatCategory]?.perKm
+                          ? `${formatVND(tenant.truckFare[veh.seatCategory]!.perKm)}/km`
+                          : 'LH Hotline'
+                        : `Từ ${formatVND(veh.dailyRateSelfDrive)}/ngày`}
                     </strong>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-500">Phục vụ:</span>
                     <strong className="text-slate-800">
-                      {veh.serviceMode === 'BOTH'
+                      {isTruckClass(veh.seatCategory)
+                        ? 'Xe tải giao hàng'
+                        : veh.serviceMode === 'BOTH'
                         ? 'Tự lái & Có tài xế'
                         : veh.serviceMode === 'SELF_DRIVE'
                         ? 'Cho thuê tự lái'
@@ -703,7 +766,9 @@ export const PublicCustomerBookingPortal: React.FC = () => {
                     </strong>
                   </div>
                   <div className="text-xs text-slate-500 pt-1 border-t border-slate-200/60">
-                    ✓ Xe trang bị sẵn thẻ thu phí tự động ETC Cao tốc, bảo hiểm đầy đủ.
+                    {isTruckClass(veh.seatCategory)
+                      ? '✓ Kết nối miễn phí, khách làm việc và thanh toán trực tiếp với chủ xe.'
+                      : '✓ Xe trang bị sẵn thẻ thu phí tự động ETC Cao tốc, bảo hiểm đầy đủ.'}
                   </div>
                 </div>
               </div>
@@ -778,7 +843,9 @@ export const PublicCustomerBookingPortal: React.FC = () => {
                     aria-label="Đổi xe"
                     className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs"
                   >
-                    {vehicles.map((v) => (
+                    {vehicles
+                      .filter((v) => isTruckClass(v.seatCategory) === isTruckClass(selectedVehicle.seatCategory))
+                      .map((v) => (
                       <option key={v.id} value={v.id}>
                         [{v.seatCategory}] {v.brand} {v.model}
                         {v.plateNumber && ` · ${v.plateNumber}`}
@@ -842,8 +909,8 @@ export const PublicCustomerBookingPortal: React.FC = () => {
                   <div className="flex justify-between">
                     <span className="text-slate-500">Lộ trình:</span>
                     <strong>
-                      {createdBooking.pickupLocation} → {createdBooking.dropoffLocation} (
-                      {createdBooking.routeType === 'HIGHWAY' ? 'Đi Cao tốc' : 'Đi Quốc lộ'})
+                      {createdBooking.pickupLocation} → {createdBooking.dropoffLocation}
+                      {!createdBooking.freight && ` (${createdBooking.routeType === 'HIGHWAY' ? 'Đi Cao tốc' : 'Đi Quốc lộ'})`}
                     </strong>
                   </div>
                 </div>
@@ -866,6 +933,7 @@ export const PublicCustomerBookingPortal: React.FC = () => {
               >
                 {/* Đang xem hợp đồng thì ẩn các ô nhập (vẫn giữ trong form để giữ giá trị) */}
                 <div className={showContract ? 'hidden' : 'space-y-4'}>
+                {!isTruckMode && (
                 <div className="grid grid-cols-2 gap-2 bg-slate-100 p-1 rounded-xl">
                   <button
                     type="button"
@@ -890,6 +958,7 @@ export const PublicCustomerBookingPortal: React.FC = () => {
                     Thuê Tự Lái
                   </button>
                 </div>
+                )}
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
@@ -1045,10 +1114,10 @@ export const PublicCustomerBookingPortal: React.FC = () => {
                   </div>
                 )}
 
-                <div className={`grid gap-2.5 ${serviceType === 'SELF_DRIVE' || isRoundTrip ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-3'}`}>
+                <div className={`grid gap-2.5 ${serviceType === 'SELF_DRIVE' || roundTrip ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-3'}`}>
                   <div>
                     <label className="block font-bold text-slate-700 mb-1">
-                      {serviceType === 'SELF_DRIVE' ? 'Ngày nhận xe *' : 'Ngày khởi hành *'}
+                      {serviceType === 'SELF_DRIVE' ? 'Ngày nhận xe *' : isTruckMode ? 'Ngày lấy hàng *' : 'Ngày khởi hành *'}
                     </label>
                     <input
                       type="date"
@@ -1064,7 +1133,7 @@ export const PublicCustomerBookingPortal: React.FC = () => {
                   </div>
                   <div>
                     <label className="block font-bold text-slate-700 mb-1">
-                      {serviceType === 'SELF_DRIVE' ? 'Giờ nhận *' : 'Giờ đón *'}
+                      {serviceType === 'SELF_DRIVE' ? 'Giờ nhận *' : isTruckMode ? 'Giờ lấy hàng *' : 'Giờ đón *'}
                     </label>
                     <TimeSelect24h
                       value={departureTime}
@@ -1073,7 +1142,7 @@ export const PublicCustomerBookingPortal: React.FC = () => {
                       className="w-full rounded-xl border border-slate-300 px-2.5 py-2 bg-white"
                     />
                   </div>
-                  {(serviceType === 'SELF_DRIVE' || isRoundTrip) && (
+                  {(serviceType === 'SELF_DRIVE' || roundTrip) && (
                     <div>
                       <label className="block font-bold text-slate-700 mb-1">
                         {serviceType === 'SELF_DRIVE' ? 'Ngày trả xe *' : 'Ngày về *'}
@@ -1090,7 +1159,7 @@ export const PublicCustomerBookingPortal: React.FC = () => {
                   )}
                   <div>
                     <label className="block font-bold text-slate-700 mb-1">
-                      {serviceType === 'SELF_DRIVE' ? 'Giờ trả *' : isRoundTrip ? 'Giờ về *' : 'Giờ về dự kiến *'}
+                      {serviceType === 'SELF_DRIVE' ? 'Giờ trả *' : roundTrip ? 'Giờ về *' : isTruckMode ? 'Giờ giao dự kiến *' : 'Giờ về dự kiến *'}
                     </label>
                     <TimeSelect24h
                       value={returnTime}
@@ -1106,7 +1175,7 @@ export const PublicCustomerBookingPortal: React.FC = () => {
                     <div>
                       <div className="flex items-center justify-between mb-1">
                         <label className="font-bold text-slate-700">
-                          {serviceType === 'SELF_DRIVE' ? 'Địa chỉ giao xe *' : 'Điểm đón khách *'}
+                          {serviceType === 'SELF_DRIVE' ? 'Địa chỉ giao xe *' : isTruckMode ? 'Điểm lấy hàng *' : 'Điểm đón khách *'}
                         </label>
                         <button
                           type="button"
@@ -1130,7 +1199,7 @@ export const PublicCustomerBookingPortal: React.FC = () => {
                     </div>
                   )}
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1">Điểm đến *</label>
+                    <label className="block font-bold text-slate-700 mb-1">{isTruckMode ? 'Điểm giao hàng *' : 'Điểm đến *'}</label>
                     <PlaceInput
                       value={dropoffLocation}
                       onChange={setDropoffLocation}
@@ -1158,9 +1227,38 @@ export const PublicCustomerBookingPortal: React.FC = () => {
                   </Suspense>
                 )}
 
+                {isTruckMode && (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="sm:col-span-2">
+                      <label className="block font-bold text-slate-700 mb-1">Hàng hóa cần chở *</label>
+                      <input
+                        type="text"
+                        value={cargoDescription}
+                        onChange={(e) => setCargoDescription(e.target.value)}
+                        placeholder="VD: Đồ đạc chuyển nhà, 1 tủ lạnh, 10 thùng giấy..."
+                        className="w-full rounded-xl border border-slate-300 px-3 py-2"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1">Khối lượng ước tính (kg)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={cargoWeight}
+                        onChange={(e) => setCargoWeight(e.target.value)}
+                        placeholder="VD: 500"
+                        className="w-full rounded-xl border border-slate-300 px-3 py-2"
+                      />
+                    </div>
+                  </div>
+                )}
+
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">
-                    Ghi chú thêm (Số người, hành lý, yêu cầu đặc biệt)
+                    {isTruckMode
+                      ? 'Ghi chú thêm (cần bốc xếp, nhà mấy tầng, đường cấm tải...)'
+                      : 'Ghi chú thêm (Số người, hành lý, yêu cầu đặc biệt)'}
                   </label>
                   <input
                     type="text"
@@ -1198,6 +1296,26 @@ export const PublicCustomerBookingPortal: React.FC = () => {
                   />
                 )}
 
+                {isTruckMode && (
+                  <label className="flex items-start gap-2 p-3 rounded-xl bg-amber-50 border border-amber-200 text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={acceptTerms}
+                      onChange={(e) => setAcceptTerms(e.target.checked)}
+                      className="mt-0.5"
+                      required
+                    />
+                    <span>
+                      Tôi đã đọc và đồng ý{' '}
+                      <a href="/dieu-khoan" target="_blank" rel="noopener" className="font-bold text-blue-700 underline">
+                        Điều khoản sử dụng
+                      </a>
+                      . Nền tảng chỉ kết nối, <strong>không chịu trách nhiệm</strong> về mọi vấn đề phát sinh trong chuyến
+                      xe; tôi tự thỏa thuận và giải quyết với chủ xe.
+                    </span>
+                  </label>
+                )}
+
                 {submitError && (
                   <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 font-semibold">
                     {submitError}
@@ -1210,6 +1328,15 @@ export const PublicCustomerBookingPortal: React.FC = () => {
                 )}
 
                 <div className="flex items-center justify-end gap-2 pt-2">
+                  {isTruckMode && routeInfo && oneWayPrice(selectedVehicle, routeInfo.km) !== null && (
+                    <div className="mr-auto">
+                      <p className="text-[11px] text-slate-500">Cước tạm tính</p>
+                      <p className="text-xl font-extrabold text-blue-700 leading-tight">
+                        {formatVND(oneWayPrice(selectedVehicle, routeInfo.km)!)}
+                      </p>
+                      <p className="text-[11px] text-slate-500">{routeInfo.km} km · chưa gồm bốc xếp</p>
+                    </div>
+                  )}
                   {serviceType === 'SELF_DRIVE' && (
                     <div className="mr-auto">
                       <p className="text-[11px] text-slate-500">Tạm tính</p>

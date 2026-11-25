@@ -4,7 +4,25 @@ export type SeatCategory =
   | '7 chỗ'
   | '9 chỗ Limousine'
   | '16 chỗ'
-  | '29 chỗ';
+  | '29 chỗ'
+  // Xe tải giao hàng: dùng chung trường này để ghi hạng xe tải
+  | 'Xe 3 gác'
+  | 'Tải nhẹ dưới 1 tấn'
+  | 'Tải 1,5 tấn'
+  | 'Tải 2,5 tấn'
+  | 'Tải 3,5 tấn'
+  | 'Tải 5 tấn'
+  | 'Tải 8 tấn';
+
+export const TRUCK_CLASSES: SeatCategory[] = [
+  'Xe 3 gác',
+  'Tải nhẹ dưới 1 tấn',
+  'Tải 1,5 tấn',
+  'Tải 2,5 tấn',
+  'Tải 3,5 tấn',
+  'Tải 5 tấn',
+  'Tải 8 tấn',
+];
 
 export type VehicleType =
   | 'Sedan'
@@ -13,7 +31,8 @@ export type VehicleType =
   | 'Limousine VIP'
   | 'Minivan'
   | 'Bán tải (Pickup)'
-  | 'Hatchback';
+  | 'Hatchback'
+  | 'Xe tải';
 
 export type ServiceMode = 'WITH_DRIVER' | 'SELF_DRIVE' | 'BOTH';
 
@@ -56,6 +75,7 @@ export interface TenantConfig {
   zaloOaName?: string;
   siteContent?: SiteContent;
   taxiFare?: TaxiFareConfig;
+  truckFare?: TruckFareConfig;
   createdAt: string;
 }
 
@@ -67,6 +87,9 @@ export interface TaxiFareConfig {
   holidays: { from: string; to: string }[]; // các đợt lễ, ngày YYYY-MM-DD (gồm cả 2 đầu)
   roundTripDiscountPercent: number; // giảm % giá cước khi khách đi khứ hồi
 }
+
+// Giá cước xe tải giao hàng theo hạng xe: đ/km và giá tối thiểu mỗi chuyến (một chiều)
+export type TruckFareConfig = Partial<Record<SeatCategory, { perKm: number; minFare: number }>>;
 
 export type FuelType = 'ELECTRIC' | 'GASOLINE' | 'DIESEL';
 
@@ -223,6 +246,8 @@ export interface Trip {
   routeDetail: string;       // Tên tuyến cụ thể (VD: Cao tốc TP.HCM - Long Thành - Phan Thiết)
   distanceKm: number;
   isRoundTrip: boolean;
+  freight?: { description: string; weightKg?: number }; // Chuyến xe tải giao hàng: hàng hóa khách khai
+  termsAcceptedAt?: string;  // Lúc khách tick đồng ý Điều khoản sử dụng (chuyến xe tải)
   isHolidayRate?: boolean;   // Áp bảng giá ngày lễ
   actualKm?: number;         // Thuê tự lái xe điện: km thực tế chạy (nhập khi nhận lại xe)
   batteryRatePerKm?: number; // Thuê tự lái xe điện: đơn giá pin đ/km

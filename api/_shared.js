@@ -167,12 +167,15 @@ export async function sendPickupLocation(token, chatId, trip) {
 export function buildTripLines(trip, vehicle) {
   const selfDrive = trip.bookingType === 'SELF_DRIVE';
   return [
-    `Hình thức: ${selfDrive ? 'Thuê tự lái' : 'Có tài xế'}`,
+    `Hình thức: ${trip.freight ? 'Xe tải giao hàng' : selfDrive ? 'Thuê tự lái' : 'Có tài xế'}`,
     ...(selfDrive && trip.deliveryMode
       ? [`Nhận xe: ${trip.deliveryMode === 'DELIVERY' ? `Giao tận nơi (${trip.pickupLocation})` : 'Khách tự đến lấy xe'}`]
       : []),
     `Xe: ${vehicle ? `${vehicle.brand} ${vehicle.model} (${vehicle.plateNumber}), ${vehicle.seatCategory}` : 'chưa chọn xe'}`,
     `Lộ trình: ${trip.pickupLocation} → ${trip.dropoffLocation}`,
+    ...(trip.freight
+      ? [`Hàng hóa: ${trip.freight.description}${trip.freight.weightKg ? ` (~${trip.freight.weightKg} kg)` : ''}`]
+      : []),
     ...(typeof trip.pickupLat === 'number' && typeof trip.pickupLng === 'number'
       ? [`Định vị điểm đón: https://www.google.com/maps?q=${trip.pickupLat},${trip.pickupLng}`]
       : []),
@@ -184,5 +187,9 @@ export function buildTripLines(trip, vehicle) {
         ]
       : [`Thời gian: ${trip.tripDate} (${trip.departureTime} - ${trip.returnTime})`]),
     `Khách: ${trip.customerName} (${trip.customerPhone})`,
+    // Chuyến xe tải: nhắc cả nhóm điều hành lẫn chủ xe về phạm vi trách nhiệm của nền tảng
+    ...(trip.freight
+      ? ['Lưu ý: nền tảng chỉ kết nối miễn phí, không chịu trách nhiệm về sự cố trong chuyến; khách và chủ xe tự thỏa thuận giá, thanh toán trực tiếp (khách đã đồng ý Điều khoản sử dụng).']
+      : []),
   ];
 }

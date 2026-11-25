@@ -13,7 +13,7 @@ export function buildMessage(trip, vehicle, driver) {
     lines.push(
       trip.dispatchedAt && driver
         ? `Tài xế: ${driver.fullName} ${driver.telegramUsername || ''} · ${driver.phone}`.trim()
-        : 'Tài xế: chờ điều hành điều phối'
+        : `${trip.freight ? 'Chủ xe' : 'Tài xế'}: chờ điều hành điều phối`
     );
   } else {
     lines.push('Chuyến tự lái: chủ xe hoặc điều hành xác nhận trên ứng dụng Thuê xe nhà.');

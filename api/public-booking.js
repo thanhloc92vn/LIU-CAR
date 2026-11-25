@@ -73,6 +73,12 @@ export default async function handler(req, res) {
     const state = await loadState();
     const vehicle = state?.vehicles?.find((v) => v.id === b.vehicleId);
     if (!vehicle) return res.status(400).json({ error: 'Xe không còn trên hệ thống, vui lòng chọn xe khác.' });
+    // Xe tải giao hàng: bắt buộc khai hàng hóa và đồng ý Điều khoản sử dụng (trang /dieu-khoan)
+    const truck = vehicle.vehicleType === 'Xe tải';
+    const cargo = str(b.freight?.description, 300);
+    if (truck && (!cargo || b.acceptTerms !== true)) {
+      return res.status(400).json({ error: 'Vui lòng nhập hàng hóa cần chở và đồng ý Điều khoản sử dụng.' });
+    }
 
     const trips = state.trips || [];
     // Cùng SĐT, cùng ngày đã có lịch chờ xác nhận thì không nhận thêm (không trả mã chuyến cũ để tránh lộ)
@@ -125,7 +131,11 @@ export default async function handler(req, res) {
       routeType,
       routeDetail: str(b.routeDetail) || 'Theo lộ trình khách chọn',
       distanceKm: num(b.distanceKm),
-      isRoundTrip: b.isRoundTrip !== false,
+      isRoundTrip: !truck && b.isRoundTrip !== false,
+      ...(truck && {
+        freight: { description: cargo, weightKg: num(b.freight?.weightKg) || undefined },
+        termsAcceptedAt: new Date(now).toISOString(),
+      }),
       // Giá tạm tính từ trang khách; điều hành kiểm tra lại trước khi xác nhận
       baseFareRevenue: num(b.baseFareRevenue),
       surchargeRevenue: delivery ? DELIVERY_FEE : 0,

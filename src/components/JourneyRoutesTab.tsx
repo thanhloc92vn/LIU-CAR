@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowRight, CarTaxiFront, Edit3, MapPin, Plus, Trash2, X } from 'lucide-react';
+import { ArrowRight, CarTaxiFront, Edit3, MapPin, Plus, Trash2, Truck, X } from 'lucide-react';
 import {
   HighwayPreset,
   JourneyPricing,
@@ -7,8 +7,10 @@ import {
   JourneyService,
   RouteType,
   TaxiFareConfig,
+  TruckFareConfig,
 } from '../types/fleet';
 import { TaxiFareModal } from './TaxiFareModal';
+import { TruckFareModal } from './TruckFareModal';
 import { formatVND } from '../utils/calculations';
 import { useConfirm } from './ConfirmDialog';
 import { DEFAULT_BATTERY_RATE_PER_KM, EMPTY_PRICING, getJourneyPricing } from '../utils/journey';
@@ -22,6 +24,8 @@ interface JourneyRoutesTabProps {
   onDelete: (id: string) => void;
   taxiFare?: TaxiFareConfig;
   onSaveTaxiFare: (cfg: TaxiFareConfig) => void;
+  truckFare?: TruckFareConfig;
+  onSaveTruckFare: (cfg: TruckFareConfig) => void;
 }
 
 const ROUTE_TYPE_LABELS: Record<RouteType, string> = {
@@ -242,9 +246,12 @@ export const JourneyRoutesTab: React.FC<JourneyRoutesTabProps> = ({
   onDelete,
   taxiFare,
   onSaveTaxiFare,
+  truckFare,
+  onSaveTruckFare,
 }) => {
   const confirm = useConfirm();
   const [showTaxiFare, setShowTaxiFare] = useState(false);
+  const [showTruckFare, setShowTruckFare] = useState(false);
   const [form, setForm] = useState<FormState | null>(null);
   const [formDay, setFormDay] = useState<DayType>('NORMAL');
   const [editingId, setEditingId] = useState<string | undefined>();
@@ -400,6 +407,14 @@ export const JourneyRoutesTab: React.FC<JourneyRoutesTabProps> = ({
             <CarTaxiFront className="w-4 h-4 text-blue-600" />
             Giá cước taxi
           </button>
+          <button
+            type="button"
+            onClick={() => setShowTruckFare(true)}
+            className="inline-flex items-center gap-1.5 h-9 px-4 rounded-full bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 text-sm font-medium transition"
+          >
+            <Truck className="w-4 h-4 text-blue-600" />
+            Giá cước xe tải
+          </button>
         </div>
       </div>
 
@@ -411,6 +426,18 @@ export const JourneyRoutesTab: React.FC<JourneyRoutesTabProps> = ({
           onSave={(cfg) => {
             onSaveTaxiFare(cfg);
             setShowTaxiFare(false);
+          }}
+        />
+      )}
+
+      {showTruckFare && (
+        <TruckFareModal
+          value={truckFare}
+          canEdit={canEdit}
+          onClose={() => setShowTruckFare(false)}
+          onSave={(cfg) => {
+            onSaveTruckFare(cfg);
+            setShowTruckFare(false);
           }}
         />
       )}

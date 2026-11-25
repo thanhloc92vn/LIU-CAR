@@ -15,12 +15,14 @@ import {
   FUEL_TYPE_LABELS,
   FuelType,
   SeatCategory,
+  TRUCK_CLASSES,
   ServiceMode,
   Trip,
   Vehicle,
   VehicleType,
 } from '../types/fleet';
 import { normalizePlate, ownerPlates } from '../utils/party';
+import { isTruckClass } from '../utils/truck';
 import { calculateTripFinancials, formatVND } from '../utils/calculations';
 import { fileToCompressedDataUrl, MAX_VEHICLE_IMAGES } from '../utils/image';
 import { uploadVehicleImage } from '../services/supabaseClient';
@@ -54,6 +56,7 @@ const SEAT_CATEGORIES: SeatCategory[] = [
   '9 chỗ Limousine',
   '16 chỗ',
   '29 chỗ',
+  ...TRUCK_CLASSES,
 ];
 
 export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
@@ -201,7 +204,7 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
         plateColor: vPlateColor,
         brand: vBrand.trim() || editingVehicle.brand,
         model: vModel.trim() || editingVehicle.model,
-        vehicleType: vType,
+        vehicleType: isTruckClass(vSeat) ? 'Xe tải' : vType === 'Xe tải' ? 'MPV Đa dụng' : vType,
         seatCategory: vSeat,
         year: Number(vYear) || 2025,
         color: vColor,
@@ -220,7 +223,7 @@ export const FleetAndDriversTab: React.FC<FleetAndDriversTabProps> = ({
         plateColor: vPlateColor,
         brand: vBrand.trim() || 'Toyota',
         model: vModel.trim() || 'Innova Cross',
-        vehicleType: vType,
+        vehicleType: isTruckClass(vSeat) ? 'Xe tải' : vType === 'Xe tải' ? 'MPV Đa dụng' : vType,
         seatCategory: vSeat,
         year: Number(vYear) || 2025,
         color: vColor,
